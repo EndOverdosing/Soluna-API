@@ -762,7 +762,7 @@ Tabs.Info:CreateButton({
 	Title = "Copy Discord Link",
 	Description = "Click to copy the Soluna Discord server link to your clipboard.",
 	Callback = function()
-		local discordLink = "https://discord.gg/gdpCUVj6uS"
+		local discordLink = "https://discord.gg/2hxKqA3b7b"
 		pcall(function()
 			setclipboard(discordLink)
 			Library:Notify({
