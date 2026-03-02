@@ -34,6 +34,11 @@ local DefaultSettings = {
 		MurderersVsSheriffsDuels = false,
         NightsInTheForest = false,
         Fling2Climb = false,
+        PlantsVsBrainrots = false,
+        TheWildWest = false,
+        StrongmanSimulator = false,
+        Doors = false,
+        Versus = false,
 	}
 }
 
@@ -140,6 +145,21 @@ if Settings.AutoLoadEnabled then
         if Settings.ScriptToggles.Fling2Climb then
             loadstring(game:HttpGet("https://soluna-script.vercel.app/fling-2-climb.lua",true))()
         end
+        if Settings.ScriptToggles.PlantsVsBrainrots then
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/plants-vs-brainrots.lua",true))()
+        end
+        if Settings.ScriptToggles.TheWildWest then
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/The-Wild-West.lua",true))()
+        end
+        if Settings.ScriptToggles.StrongmanSimulator then
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/strongman-simulator.lua",true))()
+        end
+        if Settings.ScriptToggles.Doors then
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/doors.lua",true))()
+        end
+        if Settings.ScriptToggles.Versus then
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/versus",true))()
+        end
 	end
 	autoLoadSelectedScripts()
 	local anyScriptEnabled = false
@@ -209,7 +229,7 @@ local Window = Library:CreateWindow({
 
 Window:Dialog({
 	Title = "Script Updated",
-	Content = "Added Fling to Climb and 99 Nights in the Forest!",
+	Content = "Added Plants Vs Brainrots, The Wild West, Strongman Simulator, Doors, and Versus!",
 	Buttons = {
 		{
 			Title = "Okay",
@@ -438,6 +458,15 @@ local murderersVsSheriffsDuelsToggle = Tabs.FPS:CreateToggle("MurderersVsSheriff
 	end
 })
 
+local versusToggle = Tabs.FPS:CreateToggle("VersusToggle", {
+	Title = "Versus ( Demo )",
+	Default = Settings.ScriptToggles.Versus,
+	Callback = function(Value)
+		Settings.ScriptToggles.Versus = Value
+		saveSettings()
+	end
+})
+
 Tabs.FPS:CreateButton({
 	Title = "Load Selected FPS Scripts",
 	Description = "Load all toggled FPS game scripts",
@@ -495,6 +524,15 @@ Tabs.FPS:CreateButton({
 				Duration = 3
 			})
 			loadstring(game:HttpGet("https://soluna-script.vercel.app/murderers-vs-sheriffs-duels.lua", true))()
+			scriptsLoaded = true
+		end
+		if Settings.ScriptToggles.Versus then
+			Library:Notify({
+				Title = "Versus ( Demo )",
+				Content = "Loading script...",
+				Duration = 3
+			})
+			loadstring(game:HttpGet("https://soluna-script.vercel.app/versus", true))()
 			scriptsLoaded = true
 		end
 		if not scriptsLoaded then
@@ -640,6 +678,42 @@ local fling2ClimbToggle = Tabs.Misc:CreateToggle("Fling2ClimbToggle", {
 	end
 })
 
+local plantsVsBrainrotsToggle = Tabs.Misc:CreateToggle("PlantsVsBrainrotsToggle", {
+	Title = "Plants Vs Brainrots",
+	Default = Settings.ScriptToggles.PlantsVsBrainrots,
+	Callback = function(Value)
+		Settings.ScriptToggles.PlantsVsBrainrots = Value
+		saveSettings()
+	end
+})
+
+local theWildWestToggle = Tabs.Misc:CreateToggle("TheWildWestToggle", {
+	Title = "The Wild West",
+	Default = Settings.ScriptToggles.TheWildWest,
+	Callback = function(Value)
+		Settings.ScriptToggles.TheWildWest = Value
+		saveSettings()
+	end
+})
+
+local strongmanSimulatorToggle = Tabs.Misc:CreateToggle("StrongmanSimulatorToggle", {
+	Title = "Strongman Simulator",
+	Default = Settings.ScriptToggles.StrongmanSimulator,
+	Callback = function(Value)
+		Settings.ScriptToggles.StrongmanSimulator = Value
+		saveSettings()
+	end
+})
+
+local doorsToggle = Tabs.Misc:CreateToggle("DoorsToggle", {
+	Title = "Doors",
+	Default = Settings.ScriptToggles.Doors,
+	Callback = function(Value)
+		Settings.ScriptToggles.Doors = Value
+		saveSettings()
+	end
+})
+
 Tabs.Misc:CreateButton({
 	Title = "Load Selected Misc Scripts",
 	Description = "Load all toggled miscellaneous game scripts",
@@ -715,6 +789,42 @@ Tabs.Misc:CreateButton({
                 Duration = 3
             })
             loadstring(game:HttpGet("https://soluna-script.vercel.app/fling-2-climb.lua",true))()
+            scriptsLoaded = true
+        end
+        if Settings.ScriptToggles.PlantsVsBrainrots then
+            Library:Notify({
+                Title = "Plants Vs Brainrots",
+                Content = "Loading script...",
+                Duration = 3
+            })
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/plants-vs-brainrots.lua",true))()
+            scriptsLoaded = true
+        end
+        if Settings.ScriptToggles.TheWildWest then
+            Library:Notify({
+                Title = "The Wild West",
+                Content = "Loading script...",
+                Duration = 3
+            })
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/The-Wild-West.lua",true))()
+            scriptsLoaded = true
+        end
+        if Settings.ScriptToggles.StrongmanSimulator then
+            Library:Notify({
+                Title = "Strongman Simulator",
+                Content = "Loading script...",
+                Duration = 3
+            })
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/strongman-simulator.lua",true))()
+            scriptsLoaded = true
+        end
+        if Settings.ScriptToggles.Doors then
+            Library:Notify({
+                Title = "Doors",
+                Content = "Loading script...",
+                Duration = 3
+            })
+            loadstring(game:HttpGet("https://soluna-script.vercel.app/doors.lua",true))()
             scriptsLoaded = true
         end
 		if not scriptsLoaded then
