@@ -1,4 +1,4 @@
-// yes this is open sourced, yes the key is EndOverdosing
+-- yes this is open sourced, yes the key is EndOverdosing
 
 local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
