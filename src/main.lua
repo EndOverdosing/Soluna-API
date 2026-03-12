@@ -6,6 +6,8 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
+local BASE_URL = "https://raw.githubusercontent.com/EndOverdosing/Soluna-API/main/"
+
 local DefaultSettings = {
 	AutoLoadEnabled = false,
 	TeleportLoadEnabled = false,
@@ -24,11 +26,8 @@ local DefaultSettings = {
 		Bladeball = false,
 		GunGroundsFFA = false,
 		CombatWarriors = false,
-		Fisch = false,
 		MurderMystery2 = false,
 		FleeTheFacility = false,
-		Forsaken = false,
-		BlueLock_Rivals = false,
 		GrowAGarden = false,
 		Brookhaven = false,
 		MurderersVsSheriffsDuels = false,
@@ -39,6 +38,7 @@ local DefaultSettings = {
         StrongmanSimulator = false,
         Doors = false,
         Versus = false,
+        BeNpcOrDie = false,
 	}
 }
 
@@ -86,79 +86,70 @@ end
 if Settings.AutoLoadEnabled then
 	local function autoLoadSelectedScripts()
 		if Settings.ScriptToggles.Rivals_Classic then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/rivals-classic.lua"))()
+			loadstring(game:HttpGet(BASE_URL .. "rivals-classic.lua"))()
 		end
 		if Settings.ScriptToggles.Rivals_Modern then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/rivals-modern.lua"))()
+			loadstring(game:HttpGet(BASE_URL .. "rivals-modern.lua"))()
 		end
 		if Settings.ScriptToggles.Rivals_SkinChanger then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/skin-changer.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "skin-changer.lua", true))()
 		end
 		if Settings.ScriptToggles.Arsenal then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/arsenal.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "arsenal.lua", true))()
 		end
 		if Settings.ScriptToggles.Universal then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/universal.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "universal.lua", true))()
 		end
 		if Settings.ScriptToggles.BigPaintball2 then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/big-paintball-2.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "big-paintball-2.lua", true))()
 		end
 		if Settings.ScriptToggles.AimbotFFA then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/Aimbot-FFA.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "Aimbot-FFA.lua", true))()
 		end
 		if Settings.ScriptToggles.Bladeball then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/bladeball.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "bladeball.lua", true))()
 		end
 		if Settings.ScriptToggles.GunGroundsFFA then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/gun-grounds-ffa.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "gun-grounds-ffa.lua", true))()
 		end
 		if Settings.ScriptToggles.CombatWarriors then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/combat-warriors.lua", true))()
-		end
-		if Settings.ScriptToggles.Fisch then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/fisch.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "combat-warriors.lua", true))()
 		end
 		if Settings.ScriptToggles.MurderMystery2 then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/murder-mystery-2.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "murder-mystery-2.lua", true))()
 		end
 		if Settings.ScriptToggles.FleeTheFacility then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/flee-the-facility.lua", true))()
-		end
-		if Settings.ScriptToggles.Forsaken then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/forsaken", true))()
-		end
-		if Settings.ScriptToggles.BlueLock_Rivals then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/blue-lock-rivals.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "flee-the-facility.lua", true))()
 		end
 		if Settings.ScriptToggles.GrowAGarden then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/grow-a-garden.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "grow-a-garden.lua", true))()
 		end
 		if Settings.ScriptToggles.Brookhaven then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/brookhaven.lua", true))()
-		end
-		if Settings.ScriptToggles.MurderersVsSheriffsDuels then
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/murderers-vs-sheriffs-duels.lua", true))()
+			loadstring(game:HttpGet(BASE_URL .. "brookhaven.lua", true))()
 		end
         if Settings.ScriptToggles.NightsInTheForest then
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/99-Nights-in-the-Forest.lua",true))()
+            loadstring(game:HttpGet(BASE_URL .. "99-Nights-in-the-Forest.lua", true))()
         end
         if Settings.ScriptToggles.Fling2Climb then
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/fling-2-climb.lua",true))()
+            loadstring(game:HttpGet(BASE_URL .. "fling-2-climb.lua", true))()
         end
         if Settings.ScriptToggles.PlantsVsBrainrots then
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/plants-vs-brainrots.lua",true))()
+            loadstring(game:HttpGet(BASE_URL .. "plants-vs-brainrots.lua", true))()
         end
         if Settings.ScriptToggles.TheWildWest then
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/The-Wild-West.lua",true))()
+            loadstring(game:HttpGet(BASE_URL .. "The-Wild-West.lua", true))()
         end
         if Settings.ScriptToggles.StrongmanSimulator then
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/strongman-simulator.lua",true))()
+            loadstring(game:HttpGet(BASE_URL .. "strongman-simulator.lua", true))()
         end
         if Settings.ScriptToggles.Doors then
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/doors.lua",true))()
+            loadstring(game:HttpGet(BASE_URL .. "doors.lua", true))()
         end
         if Settings.ScriptToggles.Versus then
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/versus",true))()
+            loadstring(game:HttpGet(BASE_URL .. "versus.lua", true))()
+        end
+        if Settings.ScriptToggles.BeNpcOrDie then
+            loadstring(game:HttpGet(BASE_URL .. "be-npc-or-die.lua", true))()
         end
 	end
 	autoLoadSelectedScripts()
@@ -206,7 +197,7 @@ if Settings.TeleportLoadEnabled then
             task.wait(1)
 
             pcall(function()
-                loadstring(game:HttpGet("https://soluna-script.vercel.app/main.lua", true))()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/EndOverdosing/Soluna-API/main/main.lua", true))()
             end)
         end)
     ]])
@@ -229,7 +220,7 @@ local Window = Library:CreateWindow({
 
 Window:Dialog({
 	Title = "Script Updated",
-	Content = "Added Plants Vs Brainrots, The Wild West, Strongman Simulator, Doors, and Versus!",
+	Content = "Added Be NPC or Die! Removed Fisch, Forsaken, Blue Lock Rivals, and Murderers vs Sheriffs Duels.",
 	Buttons = {
 		{
 			Title = "Okay",
@@ -333,38 +324,22 @@ Tabs.Rivals:CreateButton({
 	Callback = function()
 		local scriptsLoaded = false
 		if Settings.ScriptToggles.Rivals_Classic then
-			Library:Notify({
-				Title = "Rivals",
-				Content = "Loading Rivals Classic...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/rivals-classic.lua"))()
+			Library:Notify({ Title = "Rivals", Content = "Loading Rivals Classic...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "rivals-classic.lua"))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.Rivals_Modern then
-			Library:Notify({
-				Title = "Rivals",
-				Content = "Loading Rivals Modern...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/rivals-modern.lua"))()
+			Library:Notify({ Title = "Rivals", Content = "Loading Rivals Modern...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "rivals-modern.lua"))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.Rivals_SkinChanger then
-			Library:Notify({
-				Title = "Rivals",
-				Content = "Loading Skin Changer...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/skin-changer.lua", true))()
+			Library:Notify({ Title = "Rivals", Content = "Loading Skin Changer...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "skin-changer.lua", true))()
 			scriptsLoaded = true
 		end
 		if not scriptsLoaded then
-			Library:Notify({
-				Title = "Rivals",
-				Content = "No scripts selected to load",
-				Duration = 3
-			})
+			Library:Notify({ Title = "Rivals", Content = "No scripts selected to load", Duration = 3 })
 		end
 	end
 })
@@ -383,18 +358,10 @@ Tabs.Universal:CreateButton({
 	Description = "Load Universal script that works across many games",
 	Callback = function()
 		if Settings.ScriptToggles.Universal then
-			Library:Notify({
-				Title = "Universal",
-				Content = "Loading Universal script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/universal.lua", true))()
+			Library:Notify({ Title = "Universal", Content = "Loading Universal script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "universal.lua", true))()
 		else
-			Library:Notify({
-				Title = "Universal",
-				Content = "Universal script is not toggled on",
-				Duration = 3
-			})
+			Library:Notify({ Title = "Universal", Content = "Universal script is not toggled on", Duration = 3 })
 		end
 	end
 })
@@ -440,24 +407,6 @@ local gunGroundsFFAToggle = Tabs.FPS:CreateToggle("GunGroundsFFAToggle", {
 	end
 })
 
-local forsakenToggle = Tabs.FPS:CreateToggle("ForsakenToggle", {
-	Title = "Forsaken",
-	Default = Settings.ScriptToggles.Forsaken,
-	Callback = function(Value)
-		Settings.ScriptToggles.Forsaken = Value
-		saveSettings()
-	end
-})
-
-local murderersVsSheriffsDuelsToggle = Tabs.FPS:CreateToggle("MurderersVsSheriffsDuelsToggle", {
-	Title = "Murderers vs Sheriffs Duels",
-	Default = Settings.ScriptToggles.MurderersVsSheriffsDuels,
-	Callback = function(Value)
-		Settings.ScriptToggles.MurderersVsSheriffsDuels = Value
-		saveSettings()
-	end
-})
-
 local versusToggle = Tabs.FPS:CreateToggle("VersusToggle", {
 	Title = "Versus ( Demo )",
 	Default = Settings.ScriptToggles.Versus,
@@ -473,74 +422,32 @@ Tabs.FPS:CreateButton({
 	Callback = function()
 		local scriptsLoaded = false
 		if Settings.ScriptToggles.Arsenal then
-			Library:Notify({
-				Title = "Arsenal",
-				Content = "Loading Arsenal script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/arsenal.lua", true))()
+			Library:Notify({ Title = "Arsenal", Content = "Loading Arsenal script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "arsenal.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.BigPaintball2 then
-			Library:Notify({
-				Title = "Big Paintball 2",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/big-paintball-2.lua", true))()
+			Library:Notify({ Title = "Big Paintball 2", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "big-paintball-2.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.AimbotFFA then
-			Library:Notify({
-				Title = "Aimbot FFA",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/Aimbot-FFA.lua", true))()
+			Library:Notify({ Title = "Aimbot FFA", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "Aimbot-FFA.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.GunGroundsFFA then
-			Library:Notify({
-				Title = "Gun Grounds FFA",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/gun-grounds-ffa.lua", true))()
-			scriptsLoaded = true
-		end
-		if Settings.ScriptToggles.Forsaken then
-			Library:Notify({
-				Title = "Forsaken",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/forsaken", true))()
-			scriptsLoaded = true
-		end
-		if Settings.ScriptToggles.MurderersVsSheriffsDuels then
-			Library:Notify({
-				Title = "Murderers vs Sheriffs Duels",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/murderers-vs-sheriffs-duels.lua", true))()
+			Library:Notify({ Title = "Gun Grounds FFA", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "gun-grounds-ffa.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.Versus then
-			Library:Notify({
-				Title = "Versus ( Demo )",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/versus", true))()
+			Library:Notify({ Title = "Versus ( Demo )", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "versus.lua", true))()
 			scriptsLoaded = true
 		end
 		if not scriptsLoaded then
-			Library:Notify({
-				Title = "FPS Scripts",
-				Content = "No scripts selected to load",
-				Duration = 3
-			})
+			Library:Notify({ Title = "FPS Scripts", Content = "No scripts selected to load", Duration = 3 })
 		end
 	end
 })
@@ -574,29 +481,17 @@ Tabs.Fighting:CreateButton({
 	Callback = function()
 		local scriptsLoaded = false
 		if Settings.ScriptToggles.Bladeball then
-			Library:Notify({
-				Title = "Bladeball",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/bladeball.lua", true))()
+			Library:Notify({ Title = "Bladeball", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "bladeball.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.CombatWarriors then
-			Library:Notify({
-				Title = "Combat Warriors",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/combat-warriors.lua", true))()
+			Library:Notify({ Title = "Combat Warriors", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "combat-warriors.lua", true))()
 			scriptsLoaded = true
 		end
 		if not scriptsLoaded then
-			Library:Notify({
-				Title = "Fighting Scripts",
-				Content = "No scripts selected to load",
-				Duration = 3
-			})
+			Library:Notify({ Title = "Fighting Scripts", Content = "No scripts selected to load", Duration = 3 })
 		end
 	end
 })
@@ -604,15 +499,6 @@ Tabs.Fighting:CreateButton({
 Tabs.Misc:CreateParagraph("Miscellaneous Game Scripts", {
 	Title = "Misc Games",
 	Content = "Other game scripts that don't fit into the main categories."
-})
-
-local fischToggle = Tabs.Misc:CreateToggle("FischToggle", {
-	Title = "Fisch",
-	Default = Settings.ScriptToggles.Fisch,
-	Callback = function(Value)
-		Settings.ScriptToggles.Fisch = Value
-		saveSettings()
-	end
 })
 
 local murderMystery2Toggle = Tabs.Misc:CreateToggle("MurderMystery2Toggle", {
@@ -629,15 +515,6 @@ local fleeTheFacilityToggle = Tabs.Misc:CreateToggle("FleeTheFacilityToggle", {
 	Default = Settings.ScriptToggles.FleeTheFacility,
 	Callback = function(Value)
 		Settings.ScriptToggles.FleeTheFacility = Value
-		saveSettings()
-	end
-})
-
-local blueLockRivalsToggle = Tabs.Misc:CreateToggle("BlueLockRivalsToggle", {
-	Title = "Blue Lock Rivals",
-	Default = Settings.ScriptToggles.BlueLock_Rivals,
-	Callback = function(Value)
-		Settings.ScriptToggles.BlueLock_Rivals = Value
 		saveSettings()
 	end
 })
@@ -714,125 +591,77 @@ local doorsToggle = Tabs.Misc:CreateToggle("DoorsToggle", {
 	end
 })
 
+local beNpcOrDieToggle = Tabs.Misc:CreateToggle("BeNpcOrDieToggle", {
+	Title = "Be NPC or Die",
+	Default = Settings.ScriptToggles.BeNpcOrDie,
+	Callback = function(Value)
+		Settings.ScriptToggles.BeNpcOrDie = Value
+		saveSettings()
+	end
+})
+
 Tabs.Misc:CreateButton({
 	Title = "Load Selected Misc Scripts",
 	Description = "Load all toggled miscellaneous game scripts",
 	Callback = function()
 		local scriptsLoaded = false
-		if Settings.ScriptToggles.Fisch then
-			Library:Notify({
-				Title = "Fisch",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/fisch.lua", true))()
-			scriptsLoaded = true
-		end
 		if Settings.ScriptToggles.MurderMystery2 then
-			Library:Notify({
-				Title = "Murder Mystery 2",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/murder-mystery-2.lua", true))()
+			Library:Notify({ Title = "Murder Mystery 2", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "murder-mystery-2.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.FleeTheFacility then
-			Library:Notify({
-				Title = "Flee the Facility",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/flee-the-facility.lua", true))()
-			scriptsLoaded = true
-		end
-		if Settings.ScriptToggles.BlueLock_Rivals then
-			Library:Notify({
-				Title = "Blue Lock Rivals",
-				Content = "Loading Blue Lock Rivals script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/blue-lock-rivals.lua", true))()
+			Library:Notify({ Title = "Flee the Facility", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "flee-the-facility.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.GrowAGarden then
-			Library:Notify({
-				Title = "Grow a Garden",
-				Content = "Loading script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/grow-a-garden.lua", true))()
+			Library:Notify({ Title = "Grow a Garden", Content = "Loading script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "grow-a-garden.lua", true))()
 			scriptsLoaded = true
 		end
 		if Settings.ScriptToggles.Brookhaven then
-			Library:Notify({
-				Title = "Brookhaven",
-				Content = "Loading Brookhaven script...",
-				Duration = 3
-			})
-			loadstring(game:HttpGet("https://soluna-script.vercel.app/brookhaven.lua", true))()
+			Library:Notify({ Title = "Brookhaven", Content = "Loading Brookhaven script...", Duration = 3 })
+			loadstring(game:HttpGet(BASE_URL .. "brookhaven.lua", true))()
 			scriptsLoaded = true
 		end
         if Settings.ScriptToggles.NightsInTheForest then
-            Library:Notify({
-                Title = "99 Nights in the Forest",
-                Content = "Loading script...",
-                Duration = 3
-            })
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/99-Nights-in-the-Forest.lua",true))()
+            Library:Notify({ Title = "99 Nights in the Forest", Content = "Loading script...", Duration = 3 })
+            loadstring(game:HttpGet(BASE_URL .. "99-Nights-in-the-Forest.lua", true))()
             scriptsLoaded = true
         end
         if Settings.ScriptToggles.Fling2Climb then
-            Library:Notify({
-                Title = "Fling 2 Climb",
-                Content = "Loading script...",
-                Duration = 3
-            })
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/fling-2-climb.lua",true))()
+            Library:Notify({ Title = "Fling 2 Climb", Content = "Loading script...", Duration = 3 })
+            loadstring(game:HttpGet(BASE_URL .. "fling-2-climb.lua", true))()
             scriptsLoaded = true
         end
         if Settings.ScriptToggles.PlantsVsBrainrots then
-            Library:Notify({
-                Title = "Plants Vs Brainrots",
-                Content = "Loading script...",
-                Duration = 3
-            })
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/plants-vs-brainrots.lua",true))()
+            Library:Notify({ Title = "Plants Vs Brainrots", Content = "Loading script...", Duration = 3 })
+            loadstring(game:HttpGet(BASE_URL .. "plants-vs-brainrots.lua", true))()
             scriptsLoaded = true
         end
         if Settings.ScriptToggles.TheWildWest then
-            Library:Notify({
-                Title = "The Wild West",
-                Content = "Loading script...",
-                Duration = 3
-            })
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/The-Wild-West.lua",true))()
+            Library:Notify({ Title = "The Wild West", Content = "Loading script...", Duration = 3 })
+            loadstring(game:HttpGet(BASE_URL .. "The-Wild-West.lua", true))()
             scriptsLoaded = true
         end
         if Settings.ScriptToggles.StrongmanSimulator then
-            Library:Notify({
-                Title = "Strongman Simulator",
-                Content = "Loading script...",
-                Duration = 3
-            })
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/strongman-simulator.lua",true))()
+            Library:Notify({ Title = "Strongman Simulator", Content = "Loading script...", Duration = 3 })
+            loadstring(game:HttpGet(BASE_URL .. "strongman-simulator.lua", true))()
             scriptsLoaded = true
         end
         if Settings.ScriptToggles.Doors then
-            Library:Notify({
-                Title = "Doors",
-                Content = "Loading script...",
-                Duration = 3
-            })
-            loadstring(game:HttpGet("https://soluna-script.vercel.app/doors.lua",true))()
+            Library:Notify({ Title = "Doors", Content = "Loading script...", Duration = 3 })
+            loadstring(game:HttpGet(BASE_URL .. "doors.lua", true))()
+            scriptsLoaded = true
+        end
+        if Settings.ScriptToggles.BeNpcOrDie then
+            Library:Notify({ Title = "Be NPC or Die", Content = "Loading script...", Duration = 3 })
+            loadstring(game:HttpGet(BASE_URL .. "be-npc-or-die.lua", true))()
             scriptsLoaded = true
         end
 		if not scriptsLoaded then
-			Library:Notify({
-				Title = "Misc Scripts",
-				Content = "No scripts selected to load",
-				Duration = 3
-			})
+			Library:Notify({ Title = "Misc Scripts", Content = "No scripts selected to load", Duration = 3 })
 		end
 	end
 })
@@ -875,11 +704,7 @@ Tabs.Info:CreateButton({
 		local discordLink = "https://discord.gg/2hxKqA3b7b"
 		pcall(function()
 			setclipboard(discordLink)
-			Library:Notify({
-				Title = "Discord Link",
-				Content = "Discord link copied to clipboard!",
-				Duration = 3
-			})
+			Library:Notify({ Title = "Discord Link", Content = "Discord link copied to clipboard!", Duration = 3 })
 		end)
 	end
 })
@@ -910,17 +735,9 @@ local disableScriptLoaderToggle = Tabs.Settings:CreateToggle("DisableScriptLoade
 		Settings.DisableScriptLoader = Value
 		saveSettings()
 		if Value then
-			Library:Notify({
-				Title = "Script Loader",
-				Content = "Script Loader will be disabled on next execution",
-				Duration = 5
-			})
+			Library:Notify({ Title = "Script Loader", Content = "Script Loader will be disabled on next execution", Duration = 5 })
 		else
-			Library:Notify({
-				Title = "Script Loader",
-				Content = "Script Loader will be enabled on next execution",
-				Duration = 5
-			})
+			Library:Notify({ Title = "Script Loader", Content = "Script Loader will be enabled on next execution", Duration = 5 })
 		end
 	end
 })
@@ -929,13 +746,9 @@ Tabs.Settings:CreateButton({
 	Title = "Reload Script Loader",
 	Description = "Reloads the script loader with the latest settings",
 	Callback = function()
-		Library:Notify({
-			Title = "Script Loader",
-			Content = "Reloading Script Loader...",
-			Duration = 3
-		})
+		Library:Notify({ Title = "Script Loader", Content = "Reloading Script Loader...", Duration = 3 })
 		task.wait(1)
-		loadstring(game:HttpGet("https://soluna-script.vercel.app/main.lua", true))()
+		loadstring(game:HttpGet(BASE_URL .. "main.lua", true))()
 	end
 })
 
