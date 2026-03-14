@@ -180,7 +180,7 @@ end
 local isStudio = RunService:IsStudio() or false
 local website = "nebulasoftworks.xyz/starlight"
 local Acrylic = isStudio and require(ReplicatedStorage.AcrylicBundled)
-	or loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Starlight-Interface-Suite/refs/heads/master/Modules/Acrylic/Build.luau"))()
+	or loadstring(game:HttpGet("https://raw.githubusercontent.com/EndOverdosing/Soluna-API/refs/heads/main/starlight/Acrylic.luau"))()
 Acrylic.Init()
 
 local Request = (syn and syn.request)
@@ -12065,13 +12065,6 @@ Starlight:Notification({
 	Title = "Soluna",
 	Content = "Thanks for using our script! ❤️",
 	Duration = 10,
-	Icon = 105789146907268,
-})
-
-Starlight:Notification({
-	Title = "Soluna",
-	Content = "All credits for the UI goes to Nebula Softworks. Find them at dsc.gg/nebulasoftworks!",
-	Duration = 3,
 	Icon = 105789146907268,
 })
 return Starlight
