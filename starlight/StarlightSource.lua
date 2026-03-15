@@ -990,6 +990,77 @@ end
 local NebulaIcons = isStudio and require(ReplicatedStorage.NebulaIcons)
 
 local connections = {}
+local ThemeBindings = {}
+local ownedConnections = setmetatable({}, { __mode = "k" })
+
+local function DisconnectConnection(connection)
+	if connection then
+		pcall(function()
+			connection:Disconnect()
+		end)
+	end
+end
+
+local function RegisterOwnedCleanup(owner, callback)
+	if typeof(owner) ~= "Instance" then
+		return
+	end
+
+	local bucket = ownedConnections[owner]
+	if not bucket then
+		bucket = {
+			Callbacks = {},
+		}
+		ownedConnections[owner] = bucket
+		bucket.DestroyingConnection = owner.Destroying:Connect(function()
+			local currentBucket = ownedConnections[owner]
+			if not currentBucket then
+				return
+			end
+
+			ownedConnections[owner] = nil
+
+			for _, cleanup in ipairs(currentBucket.Callbacks) do
+				cleanup()
+			end
+
+			DisconnectConnection(currentBucket.DestroyingConnection)
+		end)
+	end
+
+	table.insert(bucket.Callbacks, callback)
+end
+
+local function ConnectOwned(owner, signal, callback)
+	local connection = signal:Connect(callback)
+	RegisterOwnedCleanup(owner, function()
+		DisconnectConnection(connection)
+	end)
+	return connection
+end
+
+local tooltipStates = setmetatable({}, { __mode = "k" })
+
+connections.__tooltipUpdater = RunService.RenderStepped:Connect(function(dt)
+	for tooltip, state in pairs(tooltipStates) do
+		if not state.IsHovering then
+			continue
+		end
+
+		local currentPos = Vector2.new(Mouse.X, Mouse.Y)
+		if (currentPos - state.LastMousePos).Magnitude > 0 then
+			tooltip.Visible = false
+			state.HoverTime = 0
+			state.LastMousePos = currentPos
+		else
+			state.HoverTime += dt
+			if state.HoverTime >= state.Threshold and not String.IsEmptyOrNull(state.Label.Text) then
+				tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 20)
+				tooltip.Visible = true
+			end
+		end
+	end
+end)
 
 --// ENDSECTION
 
@@ -1006,6 +1077,52 @@ local function GetNestedValue(tbl, path)
 	end
 	return current
 end
+
+local function TrackConnection(connection, key)
+	if key ~= nil then
+		DisconnectConnection(connections[key])
+		connections[key] = connection
+	else
+		table.insert(connections, connection)
+	end
+
+	return connection
+end
+
+local function RemoveThemeBinding(binding)
+	if binding.DestroyConnection ~= nil then
+		DisconnectConnection(binding.DestroyConnection)
+		binding.DestroyConnection = nil
+	end
+
+	for index = #ThemeBindings, 1, -1 do
+		if ThemeBindings[index] == binding then
+			table.remove(ThemeBindings, index)
+			break
+		end
+	end
+end
+
+local function ApplyThemeBinding(binding)
+	local value = GetNestedValue(Starlight.CurrentTheme, binding.ThemeKey)
+
+	if binding.Object.ClassName == "UIGradient" and typeof(value) == "Color3" then
+		binding.Object[binding.Property] = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, value),
+			ColorSequenceKeypoint.new(1, value),
+		})
+		return
+	end
+
+	binding.Object[binding.Property] = value
+end
+
+TrackConnection(themeEvent.Event:Connect(function()
+	for _, binding in ipairs(ThemeBindings) do
+		ApplyThemeBinding(binding)
+	end
+end), "__themeDispatch")
+
 local ClassInterfacer = {
 
 	["Button"] = {},
@@ -1102,25 +1219,21 @@ local ConfigMethods = {
 
 local ThemeMethods = {
 	bindTheme = function(object: GuiObject, property, themeKey)
-		local function set()
-			pcall(task.spawn, function()
-				if
-					object.ClassName == "UIGradient"
-					and typeof(GetNestedValue(Starlight.CurrentTheme, themeKey)) == "Color3"
-				then
-					object[property] = ColorSequence.new({
-						ColorSequenceKeypoint.new(0, GetNestedValue(Starlight.CurrentTheme, themeKey)),
-						ColorSequenceKeypoint.new(1, GetNestedValue(Starlight.CurrentTheme, themeKey)),
-					})
-					return
-				end
+		local binding = {
+			Object = object,
+			Property = property,
+			ThemeKey = themeKey,
+		}
 
-				object[property] = GetNestedValue(Starlight.CurrentTheme, themeKey)
-			end)
-		end
+		table.insert(ThemeBindings, binding)
 
-		themeEvent.Event:Connect(set)
-		set()
+		binding.DestroyConnection = object.Destroying:Connect(function()
+			RemoveThemeBinding(binding)
+		end)
+
+		table.insert(connections, binding.DestroyConnection)
+
+		ApplyThemeBinding(binding)
 	end,
 	encodeTheme = function(theme)
 		local function serialize(data)
@@ -1270,6 +1383,8 @@ local function BlurModule(Frame : Frame)
 	local BlursList         = {}
 	local BlurObjects       = {}
 	local BlurredGui        = {}
+	local BlurRenderStepName = "StarlightBlurUpdate"
+	local BlurRenderBound = false
 
 	BlurredGui.__index      = BlurredGui
 
@@ -1292,6 +1407,30 @@ local function BlurModule(Frame : Frame)
 			table.insert(PartsList, part)
 			table.insert(BlursList, blurObj)
 		end
+	end
+
+	local function BindBlurUpdater()
+		if BlurRenderBound then
+			return
+		end
+
+		BlurRenderBound = true
+		RunService:BindToRenderStep(BlurRenderStepName, Enum.RenderPriority.Camera.Value + 1, function()
+			if #BlursList == 0 then
+				return
+			end
+
+			BlurredGui.updateAll()
+		end)
+	end
+
+	local function UnbindBlurUpdater()
+		if not BlurRenderBound then
+			return
+		end
+
+		BlurRenderBound = false
+		RunService:UnbindFromRenderStep(BlurRenderStepName)
 	end
 
 	function BlurredGui.new(frame, shape)
@@ -1338,11 +1477,7 @@ local function BlurModule(Frame : Frame)
 
 		BlurObjects[new] = blurPart
 		rebuildPartsList()
-
-		game:GetService("RunService"):BindToRenderStep("...", Enum.RenderPriority.Camera.Value + 1, function()
-			blurPart.CFrame = Camera.CFrame
-			BlurredGui.updateAll()
-		end)
+		BindBlurUpdater()
 		return new
 	end
 
@@ -1396,6 +1531,9 @@ local function BlurModule(Frame : Frame)
 		self.Part:Destroy()
 		BlurObjects[self] = nil
 		rebuildPartsList()
+		if #BlursList == 0 then
+			UnbindBlurUpdater()
+		end
 	end
 
 	BlurredGui.new(Frame, "Rectangle")
@@ -1537,56 +1675,46 @@ local function AddToolTip(InfoStr, HoverInstance)
 
 	local hoverTime = 0
 	local IsHovering = false
-	local lastMousePos = nil
+	local lastMousePos = Vector2.new(Mouse.X, Mouse.Y)
 	local threshold = 0.44
 
 	local function updateTooltipPos()
 		tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 20)
 	end
 
+	tooltipStates[tooltip] = {
+		HoverTime = hoverTime,
+		IsHovering = IsHovering,
+		Label = label,
+		LastMousePos = lastMousePos,
+		Threshold = threshold,
+	}
+
+	RegisterOwnedCleanup(tooltip, function()
+		tooltipStates[tooltip] = nil
+	end)
+
 	if HoverInstance then
-		HoverInstance.MouseEnter:Connect(function()
-			IsHovering = true
-			lastMousePos = Vector2.new(Mouse.X, Mouse.Y)
-			hoverTime = 0
+		ConnectOwned(tooltip, HoverInstance.MouseEnter, function()
+			tooltipStates[tooltip].IsHovering = true
+			tooltipStates[tooltip].LastMousePos = Vector2.new(Mouse.X, Mouse.Y)
+			tooltipStates[tooltip].HoverTime = 0
 		end)
 
-		HoverInstance.MouseLeave:Connect(function()
-			IsHovering = false
+		ConnectOwned(tooltip, HoverInstance.MouseLeave, function()
+			tooltipStates[tooltip].IsHovering = false
 			tooltip.Visible = false
 		end)
 
-		HoverInstance:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+		ConnectOwned(tooltip, HoverInstance:GetPropertyChangedSignal("AbsolutePosition"), function()
 			local p, pos, size = Mouse, HoverInstance.AbsolutePosition, HoverInstance.AbsoluteSize
 			if not (p.X >= pos.X and p.X <= pos.X + size.X and p.Y >= pos.Y and p.Y <= pos.Y + size.Y) then
-				IsHovering = false
+				tooltipStates[tooltip].IsHovering = false
 				tooltip.Visible = false
 			else
-				IsHovering = true
-				lastMousePos = Vector2.new(Mouse.X, Mouse.Y)
-				hoverTime = 0
-			end
-		end)
-
-		RunService.RenderStepped:Connect(function(dt)
-			if not IsHovering then
-				return
-			end
-
-			local currentPos = Vector2.new(Mouse.X, Mouse.Y)
-			if (currentPos - lastMousePos).magnitude > 0 then
-				tooltip.Visible = false
-				hoverTime = 0
-				lastMousePos = currentPos
-			else
-				hoverTime += dt
-				if hoverTime >= threshold then
-					updateTooltipPos()
-					if not String.IsEmptyOrNull(label.Text) then
-						RunService.RenderStepped:Wait()
-						tooltip.Visible = true
-					end
-				end
+				tooltipStates[tooltip].IsHovering = true
+				tooltipStates[tooltip].LastMousePos = Vector2.new(Mouse.X, Mouse.Y)
+				tooltipStates[tooltip].HoverTime = 0
 			end
 		end)
 	end
@@ -3205,27 +3333,32 @@ function Starlight:CreateWindow(WindowSettings)
 		Tab.Instances.Page.Thumbnail.ImageLabel.Image =
 			Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
 
-		task.spawn(function()
-			connections.__homeTabTime = RunService.RenderStepped:Connect(function()
-				local t = os.date("*t")
-				local hour = t.hour
+		local homeTabClockAccumulator = 1
+		connections.__homeTabTime = RunService.Heartbeat:Connect(function(dt)
+			homeTabClockAccumulator += dt
+			if homeTabClockAccumulator < 1 then
+				return
+			end
 
-				local formatted = string.format("%02d : %02d : %02d", hour, t.min, t.sec)
-				local greetingString = ""
-				if hour >= 4 and hour < 12 then
-					greetingString = "Good Morning!"
-				elseif hour >= 12 and hour < 19 then
-					greetingString = "How's Your Day Going?"
-				elseif hour >= 19 and hour <= 23 then
-					greetingString = "Sweet Dreams."
-				else
-					greetingString = "Jeez you should be asleep..."
-				end
-				Tab.Instances.Page.playerUser.Text = `{greetingString} | {Player.Name}`
+			homeTabClockAccumulator = 0
 
-				Tab.Instances.Page.clock.Text =
-					`{formatted}\n{string.format("%02d / %02d / %02d", t.day, t.month, t.year % 100)}`
-			end)
+			local t = os.date("*t")
+			local hour = t.hour
+			local formatted = string.format("%02d : %02d : %02d", hour, t.min, t.sec)
+			local greetingString = ""
+			if hour >= 4 and hour < 12 then
+				greetingString = "Good Morning!"
+			elseif hour >= 12 and hour < 19 then
+				greetingString = "How's Your Day Going?"
+			elseif hour >= 19 and hour <= 23 then
+				greetingString = "Sweet Dreams."
+			else
+				greetingString = "Jeez you should be asleep..."
+			end
+
+			Tab.Instances.Page.playerUser.Text = `{greetingString} | {Player.Name}`
+			Tab.Instances.Page.clock.Text =
+				`{formatted}\n{string.format("%02d / %02d / %02d", t.day, t.month, t.year % 100)}`
 		end)
 
 		for _, column in pairs(Tab.Instances.Page.Holder:GetChildren()) do
@@ -3324,10 +3457,8 @@ function Starlight:CreateWindow(WindowSettings)
 		local function getPing()
 			return math.round(((isStudio and Players.LocalPlayer:GetNetworkPing() or StatsService.PerformanceStats.Ping:GetValue()) * 2) / 0.01)
 		end
-		local TimeFunction = RunService:IsRunning() and time or os.clock
-
-		local LastIteration, Start
-		local FrameUpdateTable = {}
+		local elapsedSinceRefresh = 0
+		local elapsedFrames = 0
 
 		local function setFriendsText(totalText, offlineText, onlineText, inServerText)
 			Tab.Instances.Page.Holder.Right.Friends.Frame.total.Text = '<font size="14" color="#FFF" weight="semibold">Total</font>\n'
@@ -3387,34 +3518,31 @@ function Starlight:CreateWindow(WindowSettings)
 			end
 		end
 
-		local function HeartbeatUpdate()
-			LastIteration = TimeFunction()
-			for Index = #FrameUpdateTable, 1, -1 do
-				FrameUpdateTable[Index + 1] = FrameUpdateTable[Index] >= LastIteration - 1 and FrameUpdateTable[Index]
-					or nil
+		local function convertToHMS(elapsed)
+			if elapsed <= 4 then
+				return "now"
+			elseif elapsed < 60 then
+				return math.floor(elapsed) .. "s"
+			elseif elapsed < 3600 then
+				return math.floor(elapsed / 60) .. "m"
+			else
+				return math.floor(elapsed / 3600) .. "h"
+			end
+		end
+
+		local function HeartbeatUpdate(dt)
+			elapsedSinceRefresh += dt
+			elapsedFrames += 1
+			if elapsedSinceRefresh < 1 then
+				return
 			end
 
-			FrameUpdateTable[1] = LastIteration
+			local fps = math.floor(elapsedFrames / elapsedSinceRefresh)
+			elapsedSinceRefresh = 0
+			elapsedFrames = 0
+			checkFriends()
 			Tab.Instances.Page.Holder.Left.Server.Frame.latency.Text =
-				`<font size="14" color="#FFF" weight="semibold">Latency</font>\n{tostring(
-					math.floor(
-						TimeFunction() - Start >= 1 and #FrameUpdateTable
-						or #FrameUpdateTable / (TimeFunction() - Start)
-					)
-				)} FPS\n{getPing()}ms`
-
-			local function convertToHMS(elapsed)
-				if elapsed <= 4 then
-					return "now"
-				elseif elapsed < 60 then
-					return math.floor(elapsed) .. "s"
-				elseif elapsed < 3600 then
-					return math.floor(elapsed / 60) .. "m"
-				else
-					return math.floor(elapsed / 3600) .. "h"
-				end
-			end
-
+				`<font size="14" color="#FFF" weight="semibold">Latency</font>\n{tostring(fps)} FPS\n{getPing()}ms`
 			Tab.Instances.Page.Holder.Left.Server.Frame.time.Text = '<font size="14" color="#FFF" weight="semibold">Players</font>\n'
 				.. convertToHMS(time())
 		end
@@ -3427,8 +3555,7 @@ function Starlight:CreateWindow(WindowSettings)
 		end
 
 		setFriendsText("Loading...", "Loading...", "Loading...", "Loading...")
-		task.spawn(checkFriends)
-		Start = TimeFunction()
+		checkFriends()
 		connections.__fpscheck = RunService.Heartbeat:Connect(HeartbeatUpdate)
 
 		ThemeMethods.bindTheme(Tab.Instances.Button, "BackgroundColor3", "Backgrounds.Dark")
@@ -5693,7 +5820,7 @@ function Starlight:CreateWindow(WindowSettings)
 						end
 					end)
 
-					UserInputService.InputBegan:Connect(function(input, processed)
+					ConnectOwned(Element.Instance, UserInputService.InputBegan, function(input, processed)
 
 						if CheckingForKey then
 
@@ -6824,14 +6951,7 @@ function Starlight:CreateWindow(WindowSettings)
 
 									local percentage = (Location - Element.Instance.PART_Backdrop.AbsolutePosition.X)
 										/ Element.Instance.PART_Backdrop.AbsoluteSize.X
-									Tween(
-										Element.Instance.PART_Backdrop.PART_Progress,
-
-										{ Size = UDim2.new(percentage, 0, 1, 0) },
-
-										nil,
-										Tween.Info(nil, nil, 0.2)
-									)
+									Element.Instance.PART_Backdrop.PART_Progress.Size = UDim2.new(percentage, 0, 1, 0)
 
 									local NewValue = ((Element.Values.Range[2] - Element.Values.Range[1]) * percentage)
 										+ Element.Values.Range[1]
@@ -7624,7 +7744,9 @@ function Starlight:CreateWindow(WindowSettings)
 								end
 							end)
 
-							connections[ParentIndex .. "_" .. Index] = UserInputService.InputBegan:Connect(
+							ConnectOwned(
+								NestedElement.Instance,
+								UserInputService.InputBegan,
 								function(input, processed)
 									if CheckingForKey then
 										if NestedElement.Values.WindowSetting then
@@ -7919,10 +8041,6 @@ function Starlight:CreateWindow(WindowSettings)
 							function NestedElement:Destroy()
 								NestedElement.Instance:Destroy()
 								NestedElement = nil
-								if connections[ParentIndex .. "_" .. Index] ~= nil then
-									connections[ParentIndex .. "_" .. Index]:Disconnect()
-								end
-								connections[ParentIndex .. "_" .. Index] = nil
 								Parent.Instance.Header.Size = UDim2.fromOffset(Parent.Instance.Header.Size.X.Offset + 26, 20)
 							end
 
@@ -8009,6 +8127,11 @@ function Starlight:CreateWindow(WindowSettings)
 						task.spawn(function()
 							local hover = false
 							local sliders = {}
+							local mainDragging = false
+							local sliderDragging = false
+							local transDragging = false
+							local h, s, v = NestedElement.Values.CurrentValue:ToHSV()
+							local updateInstances
 
 							NestedElement.Instances[1] = Element.Instance.ElementContainer.ColorPicker:Clone()
 							NestedElement.Instances[1].Visible = true
@@ -8021,7 +8144,7 @@ function Starlight:CreateWindow(WindowSettings)
 							NestedElement.Instances[1].Name = "COLORPICKER_" .. NestedIndex
 							NestedElement.Instances[2].Name = "COLORPICKER_" .. NestedIndex
 
-							acrylicEvent.Event:Connect(function()
+							ConnectOwned(NestedElement.Instances[2], acrylicEvent.Event, function()
 								if mainAcrylic then
 									NestedElement.Instances[2].BackgroundTransparency = 0.5
 								else
@@ -8031,8 +8154,15 @@ function Starlight:CreateWindow(WindowSettings)
 							local AcrylicObject = Acrylic.AcrylicPaint()
 							AcrylicObject.AddParent(NestedElement.Instances[2])
 							AcrylicObject.Frame.Parent = NestedElement.Instances[2]
+							local outsideClickConnection
+							local colorFrameConnection
 
 							local function close()
+								DisconnectConnection(outsideClickConnection)
+								outsideClickConnection = nil
+								DisconnectConnection(colorFrameConnection)
+								colorFrameConnection = nil
+
 								if
 									NestedElement.Instances[1].AbsolutePosition.Y + 27 + 245
 									>= Camera.ViewportSize.Y - (GuiInset + 20)
@@ -8069,7 +8199,11 @@ function Starlight:CreateWindow(WindowSettings)
 									or 0
 							end
 
-							NestedElement.Instances[1]:GetPropertyChangedSignal("AbsolutePosition"):Connect(close)
+							ConnectOwned(
+								NestedElement.Instances[2],
+								NestedElement.Instances[1]:GetPropertyChangedSignal("AbsolutePosition"),
+								close
+							)
 
 							NestedElement.Instances[1].Interact.MouseButton1Click:Connect(function()
 								if NestedElement.Instances[2].Visible then
@@ -8088,8 +8222,7 @@ function Starlight:CreateWindow(WindowSettings)
 									if acrylicFlag then
 										AcrylicObject.Model.Transparency = 0.98
 									end
-									local connection
-									connection = UserInputService.InputBegan:Connect(function(i)
+									outsideClickConnection = UserInputService.InputBegan:Connect(function(i)
 										if i.UserInputType ~= Enum.UserInputType.MouseButton1 then
 											return
 										end
@@ -8106,7 +8239,54 @@ function Starlight:CreateWindow(WindowSettings)
 											) and not hover
 										then
 											close()
-											connection:Disconnect()
+										end
+									end)
+									colorFrameConnection = RunService.RenderStepped:Connect(function()
+										if mainDragging then
+											local localX = math.clamp(
+												Mouse.X - NestedElement.Instances[2].Container.Color.ColorPicker.AbsolutePosition.X,
+												0,
+												NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.X
+											)
+											local localY = math.clamp(
+												Mouse.Y - NestedElement.Instances[2].Container.Color.ColorPicker.AbsolutePosition.Y,
+												0,
+												NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.Y
+											)
+											NestedElement.Instances[2].Container.Color.ColorPicker.Point.Position = UDim2.new(0, localX, 0, localY)
+											s = localX / NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.X
+											v = 1
+												- (
+													localY
+														/ NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.Y
+												)
+											NestedElement.Values.CurrentValue = Color3.fromHSV(h, s, v)
+											updateInstances(NestedElement.Instances[2].Container.Color.ColorPicker)
+										end
+
+										if sliderDragging then
+											local localY = math.clamp(
+												Mouse.Y - NestedElement.Instances[2].Container.Color.HueSlider.AbsolutePosition.Y,
+												0,
+												NestedElement.Instances[2].Container.Color.HueSlider.AbsoluteSize.Y
+											)
+											h = localY / NestedElement.Instances[2].Container.Color.HueSlider.AbsoluteSize.Y
+											NestedElement.Instances[2].Container.Color.HueSlider.Value.Size = UDim2.new(1, 0, h, 0)
+											NestedElement.Values.CurrentValue = Color3.fromHSV(h, s, v)
+											updateInstances(NestedElement.Instances[2].Container.Color.HueSlider)
+										end
+
+										if transDragging then
+											local localY = math.clamp(
+												Mouse.Y - NestedElement.Instances[2].Container.Color.TransparencySlider.AbsolutePosition.Y,
+												0,
+												NestedElement.Instances[2].Container.Color.TransparencySlider.AbsoluteSize.Y
+											)
+											local t = localY
+												/ NestedElement.Instances[2].Container.Color.TransparencySlider.AbsoluteSize.Y
+											NestedElement.Instances[2].Container.Color.TransparencySlider.Value.Size = UDim2.new(1, 0, t, 0)
+											NestedElement.Values.Transparency = 1 - t
+											updateInstances()
 										end
 									end)
 								end
@@ -8199,7 +8379,7 @@ function Starlight:CreateWindow(WindowSettings)
 								end
 							end
 
-							local function updateInstances(currentBox, ignoreCallback)
+							updateInstances = function(currentBox, ignoreCallback)
 								local oldValue = Color3.fromRGB(
 									tonumber(
 										NestedElement.Instances[2].Container.Values.HexRGB.Red.PART_Backdrop.PART_Input.Text
@@ -8212,7 +8392,7 @@ function Starlight:CreateWindow(WindowSettings)
 									)
 								)
 
-								local h, s, v = NestedElement.Values.CurrentValue:ToHSV()
+								h, s, v = NestedElement.Values.CurrentValue:ToHSV()
 								if
 									currentBox == NestedElement.Instances[2].Container.Color.ColorPicker
 									or currentBox == NestedElement.Instances[2].Container.Color.HueSlider
@@ -8294,14 +8474,9 @@ function Starlight:CreateWindow(WindowSettings)
 										Color3.fromRGB(165, 165, 165)
 								end
 
-								Tween(
-									NestedElement.Instances[2].Container.Color.HueSlider.Value,
-									{ Size = UDim2.new(1, 0, h, 0) }
-								)
-								Tween(
-									NestedElement.Instances[2].Container.Color.TransparencySlider.Value,
-									{ Size = UDim2.new(1, 0, 1 - (NestedElement.Values.Transparency or 0), 0) }
-								)
+								NestedElement.Instances[2].Container.Color.HueSlider.Value.Size = UDim2.new(1, 0, h, 0)
+								NestedElement.Instances[2].Container.Color.TransparencySlider.Value.Size =
+									UDim2.new(1, 0, 1 - (NestedElement.Values.Transparency or 0), 0)
 
 								local color = Color3.fromHSV(h, s, v)
 								local r, g, b =
@@ -8411,16 +8586,12 @@ function Starlight:CreateWindow(WindowSettings)
 							end
 
 							updateInstances()
-							local h, _, _ = NestedElement.Values.CurrentValue:ToHSV()
 
 							NestedElement.Instances[2].Container.Values.AlphaHSV.Hue.PART_Backdrop.PART_Input.Text =
 								tostring(math.floor((h * 255) + 0.5))
 
 							do
-								local mainDragging, sliderDragging, transDragging = nil, nil, nil
 								local mainHover, sliderHover, transHover = false, false, false
-
-								local h, s, v = NestedElement.Values.CurrentValue:ToHSV()
 
 								function NestedElement:__updateHsv()
 									h, s, v = NestedElement.Values.CurrentValue:ToHSV()
@@ -8430,7 +8601,7 @@ function Starlight:CreateWindow(WindowSettings)
 								local hex =
 									string.format("#%02X%02X%02X", color.R * 0xFF, color.G * 0xFF, color.B * 0xFF)
 
-								UserInputService.InputEnded:Connect(function(input)
+								ConnectOwned(NestedElement.Instances[2], UserInputService.InputEnded, function(input)
 									if
 										input.UserInputType == Enum.UserInputType.MouseButton1
 										or input.UserInputType == Enum.UserInputType.Touch
@@ -8548,76 +8719,6 @@ function Starlight:CreateWindow(WindowSettings)
 									end
 								)
 
-								RunService.RenderStepped:Connect(function()
-									if mainDragging then
-										local localX = math.clamp(
-											Mouse.X
-											- NestedElement.Instances[2].Container.Color.ColorPicker.AbsolutePosition.X,
-											0,
-											NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.X
-										)
-										local localY = math.clamp(
-											Mouse.Y
-											- NestedElement.Instances[2].Container.Color.ColorPicker.AbsolutePosition.Y,
-											0,
-											NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.Y
-										)
-										Tween(
-											NestedElement.Instances[2].Container.Color.ColorPicker.Point,
-											{ Position = UDim2.new(0, localX, 0, localY) }
-										)
-										s = localX
-											/ NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.X
-										v = 1
-										- (
-											localY
-												/ NestedElement.Instances[2].Container.Color.ColorPicker.AbsoluteSize.Y
-										)
-										local color = Color3.fromHSV(h, s, v)
-										NestedElement.Values.CurrentValue = color
-										updateInstances(NestedElement.Instances[2].Container.Color.ColorPicker)
-										local r, g, b =
-											math.floor((color.R * 255) + 0.5),
-											math.floor((color.G * 255) + 0.5),
-											math.floor((color.B * 255) + 0.5)
-									end
-									if sliderDragging then
-										local localY = math.clamp(
-											Mouse.Y
-											- NestedElement.Instances[2].Container.Color.HueSlider.AbsolutePosition.Y,
-											0,
-											NestedElement.Instances[2].Container.Color.HueSlider.AbsoluteSize.Y
-										)
-										h = localY / NestedElement.Instances[2].Container.Color.HueSlider.AbsoluteSize.Y
-										local color = Color3.fromHSV(h, s, v)
-										NestedElement.Values.CurrentValue = color
-										updateInstances(NestedElement.Instances[2].Container.Color.HueSlider)
-										Tween(
-											NestedElement.Instances[2].Container.Color.HueSlider.Value,
-											{ Size = UDim2.new(1, 0, h, 0) }
-										)
-										local r, g, b =
-											math.floor((color.R * 255) + 0.5),
-											math.floor((color.G * 255) + 0.5),
-											math.floor((color.B * 255) + 0.5)
-									end
-									if transDragging then
-										local localY = math.clamp(
-											Mouse.Y
-											- NestedElement.Instances[2].Container.Color.TransparencySlider.AbsolutePosition.Y,
-											0,
-											NestedElement.Instances[2].Container.Color.TransparencySlider.AbsoluteSize.Y
-										)
-										local t = localY
-											/ NestedElement.Instances[2].Container.Color.TransparencySlider.AbsoluteSize.Y
-										Tween(
-											NestedElement.Instances[2].Container.Color.TransparencySlider.Value,
-											{ Size = UDim2.new(1, 0, t, 0) }
-										)
-										NestedElement.Values.Transparency = 1 - t
-										updateInstances()
-									end
-								end)
 							end
 
 							NestedElement.Instances[2].Container.Color.OldColor.MouseButton1Click:Connect(function()
@@ -8996,6 +9097,7 @@ function Starlight:CreateWindow(WindowSettings)
 							local AcrylicObject = Acrylic.AcrylicPaint()
 							AcrylicObject.AddParent(NestedElement.Instances[2])
 							AcrylicObject.Frame.Parent = NestedElement.Instances[2]
+							local outsideClickConnection
 
 							local function updPos()
 								if
@@ -9016,6 +9118,9 @@ function Starlight:CreateWindow(WindowSettings)
 								end
 							end
 							local function close()
+								DisconnectConnection(outsideClickConnection)
+								outsideClickConnection = nil
+
 								Tween(
 									NestedElement.Instances[2].List,
 									{ Size = UDim2.new(1, 0, 0, 0) },
@@ -9036,19 +9141,31 @@ function Starlight:CreateWindow(WindowSettings)
 									Tween.Info(nil, nil, 0.18)
 								)
 							end
-							NestedElement.Instances[1]:GetPropertyChangedSignal("AbsolutePosition"):Connect(close)
-							NestedElement.Instances[1]:GetPropertyChangedSignal("AbsolutePosition"):Connect(updPos)
+							ConnectOwned(
+								NestedElement.Instances[2],
+								NestedElement.Instances[1]:GetPropertyChangedSignal("AbsolutePosition"),
+								close
+							)
+							ConnectOwned(
+								NestedElement.Instances[2],
+								NestedElement.Instances[1]:GetPropertyChangedSignal("AbsolutePosition"),
+								updPos
+							)
 							updPos()
 							close()
 
-							NestedElement.Instances[1]:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+							ConnectOwned(
+								NestedElement.Instances[2],
+								NestedElement.Instances[1]:GetPropertyChangedSignal("AbsoluteSize"),
+								function()
 								NestedElement.Instances[2].Size = UDim2.fromOffset(
 									math.ceil(NestedElement.Instances[1].AbsoluteSize.X),
 									NestedElement.Instances[2].Size.Y.Offset
 								)
 								--task.wait()
 								NestedElement:truncate()
-							end)
+								end
+							)
 
 							NestedElement.Instances[1].Interact.MouseButton1Click:Connect(function()
 								if NestedElement.Instances[2].Visible then
@@ -9074,8 +9191,7 @@ function Starlight:CreateWindow(WindowSettings)
 									if acrylicFlag then
 										AcrylicObject.Model.Transparency = 0.98
 									end
-									local connection
-									connection = UserInputService.InputBegan:Connect(function(i)
+									outsideClickConnection = UserInputService.InputBegan:Connect(function(i)
 										if i.UserInputType ~= Enum.UserInputType.MouseButton1 then
 											return
 										end
@@ -9092,7 +9208,6 @@ function Starlight:CreateWindow(WindowSettings)
 											) and not hover
 										then
 											close()
-											connection:Disconnect()
 										end
 									end)
 								end
@@ -9312,7 +9427,7 @@ function Starlight:CreateWindow(WindowSettings)
 										"Accents.Brighter"
 									)
 									ThemeMethods.bindTheme(optioninstance.header, "TextColor3", "Foregrounds.Medium")
-									themeEvent.Event:Connect(function()
+									ConnectOwned(optioninstance, themeEvent.Event, function()
 										if optioninstance:GetAttribute("Active") then
 											Activate(optioninstance)
 										else
@@ -9368,30 +9483,26 @@ function Starlight:CreateWindow(WindowSettings)
 							NestedElement.Instances[1].Header.PlaceholderText = NestedElement.Values.Placeholder or "--"
 
 							if NestedElement.Values.Special == 1 then
-								local c
-								c = Players.PlayerAdded:Connect(function()
+								ConnectOwned(NestedElement.Instances[2], Players.PlayerAdded, function()
 									if not pcall(Refresh) then
-										c:Disconnect()
+										NestedElement.Instances[2]:Destroy()
 									end
 								end)
-								local c
-								c = Players.ChildRemoved:Connect(function()
+								ConnectOwned(NestedElement.Instances[2], Players.ChildRemoved, function()
 									if not pcall(Refresh) then
-										c:Disconnect()
+										NestedElement.Instances[2]:Destroy()
 									end
 								end)
 							end
 							if NestedElement.Values.Special == 2 then
-								local c
-								c = Teams.ChildAdded:Connect(function()
+								ConnectOwned(NestedElement.Instances[2], Teams.ChildAdded, function()
 									if not pcall(Refresh) then
-										c:Disconnect()
+										NestedElement.Instances[2]:Destroy()
 									end
 								end)
-								local c
-								c = Teams.ChildRemoved:Connect(function()
+								ConnectOwned(NestedElement.Instances[2], Teams.ChildRemoved, function()
 									if not pcall(Refresh) then
-										c:Disconnect()
+										NestedElement.Instances[2]:Destroy()
 									end
 								end)
 							end
@@ -10860,6 +10971,7 @@ function Starlight:CreateWindow(WindowSettings)
 
 		local SearchOpen = false
 		local SearchMatches = {}
+		local SearchEntries = {}
 
 		local SearchRoot = Instance.new("Frame")
 		SearchRoot.Name = "SearchRoot"
@@ -11082,6 +11194,16 @@ function Starlight:CreateWindow(WindowSettings)
 			return ResultEntries
 		end
 
+		local RenderSearchResults
+
+		local function RefreshSearchSurface()
+			UpdateSearchIconState()
+
+			if SearchOpen then
+				RenderSearchResults(SearchInput.Text)
+			end
+		end
+
 		local function OpenSearchMatch(Match)
 			if not Match then
 				return
@@ -11110,7 +11232,7 @@ function Starlight:CreateWindow(WindowSettings)
 			UpdateSearchIconState()
 		end
 
-		local function RenderSearchResults(Query)
+		RenderSearchResults = function(Query)
 			for _, Child in ipairs(SearchResultsList:GetChildren()) do
 				if Child:IsA("GuiObject") then
 					Child:Destroy()
@@ -11128,7 +11250,7 @@ function Starlight:CreateWindow(WindowSettings)
 
 			local RankedMatches = {}
 
-			for _, Entry in ipairs(BuildSearchEntries()) do
+			for _, Entry in ipairs(SearchEntries) do
 				local MatchStart = string.find(Entry.SearchValue, Query, 1, true)
 				if MatchStart then
 					table.insert(RankedMatches, {
@@ -11246,12 +11368,6 @@ function Starlight:CreateWindow(WindowSettings)
 					ApplyResultState(true)
 				end)
 
-				themeEvent.Event:Connect(function()
-					ApplyResultState(false)
-				end)
-				acrylicEvent.Event:Connect(function()
-					ApplyResultState(false)
-				end)
 				ApplyResultState(false)
 
 				ResultButton.MouseButton1Click:Connect(function()
@@ -11265,6 +11381,7 @@ function Starlight:CreateWindow(WindowSettings)
 
 		local function OpenSearchSurface()
 			SearchOpen = true
+			SearchEntries = BuildSearchEntries()
 			SearchRoot.Visible = true
 			UpdateSearchIconState()
 			SearchInput:CaptureFocus()
@@ -11274,6 +11391,7 @@ function Starlight:CreateWindow(WindowSettings)
 		local function CloseSearchSurface()
 			SearchOpen = false
 			SearchMatches = {}
+			SearchEntries = {}
 			SearchInput.Text = ""
 			SearchInput:ReleaseFocus()
 			SearchResults.Visible = false
@@ -11291,8 +11409,13 @@ function Starlight:CreateWindow(WindowSettings)
 		ThemeMethods.bindTheme(SearchResultsSurface, "BackgroundColor3", "Backgrounds.Medium")
 		ThemeMethods.bindTheme(SearchResultsSurfaceInner, "BackgroundColor3", "Backgrounds.Groupbox")
 		ThemeMethods.bindTheme(SearchResultsSurfaceStroke, "Color", "Miscellaneous.Shadow")
-		themeEvent.Event:Connect(UpdateSearchIconState)
-		acrylicEvent.Event:Connect(ApplySearchMaterial)
+		ConnectOwned(SearchRoot, themeEvent.Event, RefreshSearchSurface)
+		ConnectOwned(SearchRoot, acrylicEvent.Event, function()
+			ApplySearchMaterial()
+			if SearchOpen then
+				RenderSearchResults(SearchInput.Text)
+			end
+		end)
 		ApplySearchMaterial()
 
 		SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
@@ -11315,7 +11438,7 @@ function Starlight:CreateWindow(WindowSettings)
 			end
 		end)
 
-		UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+		ConnectOwned(SearchRoot, UserInputService.InputBegan, function(Input, GameProcessed)
 			if GameProcessed or not SearchOpen then
 				return
 			end
