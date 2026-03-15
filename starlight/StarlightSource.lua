@@ -3243,6 +3243,9 @@ function Starlight:CreateWindow(WindowSettings)
 	local function SetCurrentTab(TabReference, Animate)
 		local CurrentTab = Starlight.Window.CurrentTab
 		if CurrentTab == TabReference then
+			if TabReference.UpdatePageState then
+				TabReference:UpdatePageState()
+			end
 			if tabs.UIPageLayout.CurrentPage ~= TabReference.Instances.Page then
 				tabs.UIPageLayout:JumpTo(TabReference.Instances.Page)
 			end
@@ -3252,11 +3255,17 @@ function Starlight:CreateWindow(WindowSettings)
 		if CurrentTab ~= nil then
 			CurrentTab.Active = false
 			ApplyTabButtonState(CurrentTab, false, Animate)
+			if CurrentTab.UpdatePageState then
+				CurrentTab:UpdatePageState()
+			end
 		end
 
 		TabReference.Active = true
 		Starlight.Window.CurrentTab = TabReference
 		ApplyTabButtonState(TabReference, true, Animate)
+		if TabReference.UpdatePageState then
+			TabReference:UpdatePageState()
+		end
 
 		if tabs.UIPageLayout.CurrentPage ~= TabReference.Instances.Page then
 			tabs.UIPageLayout:JumpTo(TabReference.Instances.Page)
@@ -4656,6 +4665,8 @@ function Starlight:CreateWindow(WindowSettings)
 				end
 			end)
 
+			local FadeUpdaters = {}
+
 			for i = 1, TabSettings.Columns do
 				local column = tabs["Tab_TEMPLATE"].ScrollingCollumnTemplate:Clone()
 				column.Parent = Tab.Instances.Page
@@ -4713,8 +4724,10 @@ function Starlight:CreateWindow(WindowSettings)
 
 				ConnectOwned(column, column:GetPropertyChangedSignal("CanvasPosition"), updTop)
 				ConnectOwned(column, column:GetPropertyChangedSignal("CanvasPosition"), updBottom)
-				ConnectOwned(column, tabs.UIPageLayout:GetPropertyChangedSignal("CurrentPage"), updTop)
-				ConnectOwned(column, tabs.UIPageLayout:GetPropertyChangedSignal("CurrentPage"), updBottom)
+				table.insert(FadeUpdaters, function()
+					updTop()
+					updBottom()
+				end)
 
 				task.delay(1.2, function()
 					updTop()
@@ -4723,6 +4736,12 @@ function Starlight:CreateWindow(WindowSettings)
 
 				fadetop.Parent = mainWindow.Content.ContentMain.FadesTop
 				fadebottom.Parent = mainWindow.Content.ContentMain.FadesBottom
+			end
+
+			function Tab:UpdatePageState()
+				for _, updateFades in ipairs(FadeUpdaters) do
+					updateFades()
+				end
 			end
 
 			ThemeMethods.bindTheme(Tab.Instances.Button, "BackgroundColor3", "Backgrounds.Dark")
@@ -5558,6 +5577,10 @@ function Starlight:CreateWindow(WindowSettings)
 					Element.Instances.Popup.Parent = mainWindow["Popup Overlay"]
 					Element.Instances.Popup.Header.Text = ElementSettings.Name
 					local popupOutsideClickConnection
+					RegisterOwnedCleanup(Element.Instances.Popup, function()
+						DisconnectConnection(popupOutsideClickConnection)
+						popupOutsideClickConnection = nil
+					end)
 
 
 					--// Interaction System \\--
@@ -8162,6 +8185,12 @@ function Starlight:CreateWindow(WindowSettings)
 							AcrylicObject.Frame.Parent = NestedElement.Instances[2]
 							local outsideClickConnection
 							local colorFrameConnection
+							RegisterOwnedCleanup(NestedElement.Instances[2], function()
+								DisconnectConnection(outsideClickConnection)
+								outsideClickConnection = nil
+								DisconnectConnection(colorFrameConnection)
+								colorFrameConnection = nil
+							end)
 
 							local function close()
 								DisconnectConnection(outsideClickConnection)
@@ -9111,6 +9140,10 @@ function Starlight:CreateWindow(WindowSettings)
 							AcrylicObject.AddParent(NestedElement.Instances[2])
 							AcrylicObject.Frame.Parent = NestedElement.Instances[2]
 							local outsideClickConnection
+							RegisterOwnedCleanup(NestedElement.Instances[2], function()
+								DisconnectConnection(outsideClickConnection)
+								outsideClickConnection = nil
+							end)
 
 							local function updPos()
 								if
