@@ -200,7 +200,9 @@ local Tween = {}
 setmetatable(Tween, {
 	__call = function(self, object: Instance, goal: table, callback, tweenin)
 		local tween = TweenService:Create(object, tweenin or Tween.Info(), goal)
-		tween.Completed:Connect(callback or function() end)
+		if callback ~= nil then
+			tween.Completed:Connect(callback)
+		end
 		tween:Play()
 	end,
 })
@@ -1041,6 +1043,20 @@ local function ConnectOwned(owner, signal, callback)
 end
 
 local tooltipStates = setmetatable({}, { __mode = "k" })
+local activeTooltipCount = 0
+
+local function SetTooltipHoverState(tooltip, isHovering)
+	local state = tooltipStates[tooltip]
+	if not state or state.IsHovering == isHovering then
+		return
+	end
+
+	state.IsHovering = isHovering
+	activeTooltipCount += isHovering and 1 or -1
+	if activeTooltipCount < 0 then
+		activeTooltipCount = 0
+	end
+end
 
 connections.__tooltipUpdater = RunService.RenderStepped:Connect(function(dt)
 	if Starlight.Minimized or not Starlight.Instance or not Starlight.Instance.Parent then
@@ -1048,15 +1064,21 @@ connections.__tooltipUpdater = RunService.RenderStepped:Connect(function(dt)
 			state.IsHovering = false
 			tooltip.Visible = false
 		end
+		activeTooltipCount = 0
 		return
 	end
+
+	if activeTooltipCount == 0 then
+		return
+	end
+
+	local currentPos = Vector2.new(Mouse.X, Mouse.Y)
 
 	for tooltip, state in pairs(tooltipStates) do
 		if not state.IsHovering then
 			continue
 		end
 
-		local currentPos = Vector2.new(Mouse.X, Mouse.Y)
 		if (currentPos - state.LastMousePos).Magnitude > 0 then
 			tooltip.Visible = false
 			state.HoverTime = 0
@@ -1696,6 +1718,10 @@ local function AddToolTip(InfoStr, HoverInstance)
 	}
 
 	RegisterOwnedCleanup(tooltip, function()
+		local state = tooltipStates[tooltip]
+		if state and state.IsHovering then
+			activeTooltipCount = math.max(0, activeTooltipCount - 1)
+		end
 		tooltipStates[tooltip] = nil
 	end)
 
@@ -1705,23 +1731,23 @@ local function AddToolTip(InfoStr, HoverInstance)
 		end)
 
 		ConnectOwned(tooltip, HoverInstance.MouseEnter, function()
-			tooltipStates[tooltip].IsHovering = true
+			SetTooltipHoverState(tooltip, true)
 			tooltipStates[tooltip].LastMousePos = Vector2.new(Mouse.X, Mouse.Y)
 			tooltipStates[tooltip].HoverTime = 0
 		end)
 
 		ConnectOwned(tooltip, HoverInstance.MouseLeave, function()
-			tooltipStates[tooltip].IsHovering = false
+			SetTooltipHoverState(tooltip, false)
 			tooltip.Visible = false
 		end)
 
 		ConnectOwned(tooltip, HoverInstance:GetPropertyChangedSignal("AbsolutePosition"), function()
 			local p, pos, size = Mouse, HoverInstance.AbsolutePosition, HoverInstance.AbsoluteSize
 			if not (p.X >= pos.X and p.X <= pos.X + size.X and p.Y >= pos.Y and p.Y <= pos.Y + size.Y) then
-				tooltipStates[tooltip].IsHovering = false
+				SetTooltipHoverState(tooltip, false)
 				tooltip.Visible = false
 			else
-				tooltipStates[tooltip].IsHovering = true
+				SetTooltipHoverState(tooltip, true)
 				tooltipStates[tooltip].LastMousePos = Vector2.new(Mouse.X, Mouse.Y)
 				tooltipStates[tooltip].HoverTime = 0
 			end
@@ -2253,6 +2279,62 @@ local function ExpandNotification(notification)
 	end)
 end
 
+local NotificationTimeEntries = setmetatable({}, { __mode = "k" })
+local NotificationTimeUpdaterRunning = false
+
+local function UpdateNotificationTimestamp(notification, creationTime)
+	local elapsed = tick() - creationTime
+	if elapsed < 1 then
+		notification.Time.Text = "now"
+	elseif elapsed < 60 then
+		notification.Time.Text = math.floor(elapsed) .. "s ago"
+	elseif elapsed < 3600 then
+		notification.Time.Text = math.floor(elapsed / 60) .. "m ago"
+	else
+		notification.Time.Text = math.floor(elapsed / 3600) .. "h ago"
+	end
+end
+
+local function RunNotificationTimeUpdater()
+	if NotificationTimeUpdaterRunning then
+		return
+	end
+
+	NotificationTimeUpdaterRunning = true
+
+	task.spawn(function()
+		while true do
+			local hasEntries = false
+			local staleNotifications = {}
+
+			for notification, creationTime in pairs(NotificationTimeEntries) do
+				if notification and notification.Parent then
+					hasEntries = true
+					UpdateNotificationTimestamp(notification, creationTime)
+				else
+					table.insert(staleNotifications, notification)
+				end
+			end
+
+			for _, notification in ipairs(staleNotifications) do
+				NotificationTimeEntries[notification] = nil
+			end
+
+			if not hasEntries then
+				break
+			end
+
+			task.wait(1)
+		end
+
+		NotificationTimeUpdaterRunning = false
+
+		if next(NotificationTimeEntries) ~= nil then
+			RunNotificationTimeUpdater()
+		end
+	end)
+end
+
 function Starlight:Notification(data)
 	--[[
 	NotificationSettings = {
@@ -2278,8 +2360,6 @@ function Starlight:Notification(data)
 
 	task.spawn(function()
 		local notificationConnections = {}
-		local creationTime = tick()
-		local timeUpdateConnection
 		local cleanedUp = false
 
 		-- Notification Object Creation
@@ -2300,11 +2380,7 @@ function Starlight:Notification(data)
 			end
 
 			cleanedUp = true
-			pcall(function()
-				if timeUpdateConnection then
-					task.cancel(timeUpdateConnection)
-				end
-			end)
+			NotificationTimeEntries[newNotification] = nil
 			pcall(function()
 				if AcrylicObject and AcrylicObject.Model then
 					AcrylicObject.Model:Destroy()
@@ -2320,26 +2396,12 @@ function Starlight:Notification(data)
 			end
 		end)
 
-		local function setDuration(elapsed)
-			if elapsed < 1 then
-				newNotification.Time.Text = "now"
-			elseif elapsed < 60 then
-				newNotification.Time.Text = math.floor(elapsed) .. "s ago"
-			elseif elapsed < 3600 then
-				newNotification.Time.Text = math.floor(elapsed / 60) .. "m ago"
-			else
-				newNotification.Time.Text = math.floor(elapsed / 3600) .. "h ago"
-			end
-		end
-
 		data.Duration = data.Duration or math.min(math.max((#(data.Content or "") * 0.1) + 2.5, 3), 10)
 		if data.Duration >= 0 then
-			timeUpdateConnection = task.spawn(function()
-				while newNotification and newNotification.Parent do
-					pcall(setDuration, tick() - creationTime)
-					task.wait(1)
-				end
-			end)
+			local creationTime = tick()
+			NotificationTimeEntries[newNotification] = creationTime
+			UpdateNotificationTimestamp(newNotification, creationTime)
+			RunNotificationTimeUpdater()
 		else
 			newNotification.Time.Text = "pinned"
 		end
@@ -11018,9 +11080,7 @@ function Starlight:CreateWindow(WindowSettings)
 					end
 				else
 					for i, newNotification in pairs(CollectionService:GetTagged("__starlight_ExpiredNotification")) do
-						task.spawn(function()
-							ExpandNotification(newNotification)
-						end)
+						ExpandNotification(newNotification)
 					end
 				end
 				Starlight.NotificationsOpen = not Starlight.NotificationsOpen
@@ -11165,6 +11225,7 @@ function Starlight:CreateWindow(WindowSettings)
 		local SearchResultsLayout = Instance.new("UIListLayout")
 		SearchResultsLayout.Padding = UDim.new(0, 6)
 		SearchResultsLayout.Parent = SearchResultsList
+		local SearchResultCards = {}
 
 		local function UpdateSearchIconState()
 			Tween(
@@ -11255,6 +11316,120 @@ function Starlight:CreateWindow(WindowSettings)
 		end
 
 		local RenderSearchResults
+		local OpenSearchMatch
+
+		local function GetSearchResultCard(Index)
+			local Card = SearchResultCards[Index]
+			if Card then
+				return Card
+			end
+
+			local ResultButton = Instance.new("TextButton")
+			ResultButton.AutoButtonColor = false
+			ResultButton.BackgroundTransparency = 0
+			ResultButton.BorderSizePixel = 0
+			ResultButton.Size = UDim2.new(1, 0, 0, 42)
+			ResultButton.Text = ""
+			ResultButton.Visible = false
+			ResultButton.ZIndex = 21
+
+			local ResultCorner = Instance.new("UICorner")
+			ResultCorner.CornerRadius = UDim.new(0, 5)
+			ResultCorner.Parent = ResultButton
+
+			local ResultStroke = Instance.new("UIStroke")
+			ResultStroke.Transparency = 0.55
+			ResultStroke.Parent = ResultButton
+
+			local ResultTitle = Instance.new("TextLabel")
+			ResultTitle.BackgroundTransparency = 1
+			ResultTitle.Font = Enum.Font.GothamMedium
+			ResultTitle.Position = UDim2.new(0, 10, 0, 6)
+			ResultTitle.Size = UDim2.new(1, -20, 0, 14)
+			ResultTitle.TextSize = 12
+			ResultTitle.TextTruncate = Enum.TextTruncate.AtEnd
+			ResultTitle.TextXAlignment = Enum.TextXAlignment.Left
+			ResultTitle.ZIndex = 22
+			ResultTitle.Parent = ResultButton
+
+			local ResultPath = Instance.new("TextLabel")
+			ResultPath.BackgroundTransparency = 1
+			ResultPath.Font = Enum.Font.Gotham
+			ResultPath.Position = UDim2.new(0, 10, 0, 22)
+			ResultPath.Size = UDim2.new(1, -20, 0, 12)
+			ResultPath.TextSize = 10
+			ResultPath.TextTruncate = Enum.TextTruncate.AtEnd
+			ResultPath.TextXAlignment = Enum.TextXAlignment.Left
+			ResultPath.ZIndex = 22
+			ResultPath.Parent = ResultButton
+
+			Card = {
+				Button = ResultButton,
+				Stroke = ResultStroke,
+				Title = ResultTitle,
+				Path = ResultPath,
+				Hovering = false,
+				Match = nil,
+			}
+
+			function Card:ApplyState(Animate)
+				if self.Button.Parent == nil then
+					return
+				end
+
+				local ButtonColor = self.Hovering and Starlight.CurrentTheme.Backgrounds.Highlight
+					or Starlight.CurrentTheme.Backgrounds.Groupbox
+				local ButtonTransparency = mainAcrylic and (self.Hovering and 0.34 or 0.48) or 0
+				local StrokeColor = self.Hovering and Starlight.CurrentTheme.Foregrounds.DarkHover
+					or Starlight.CurrentTheme.Miscellaneous.Shadow
+				local StrokeTransparency = mainAcrylic and (self.Hovering and 0.3 or 0.55) or 0.1
+				local TitleColor = self.Hovering and Starlight.CurrentTheme.Foregrounds.Active
+					or Starlight.CurrentTheme.Foregrounds.Light
+				local PathColor = self.Hovering and Starlight.CurrentTheme.Foregrounds.Light
+					or Starlight.CurrentTheme.Foregrounds.Medium
+
+				if Animate then
+					Tween(self.Button, {
+						BackgroundColor3 = ButtonColor,
+						BackgroundTransparency = ButtonTransparency,
+					}, nil, Tween.Info("Quint", "Out", 0.16))
+					Tween(self.Stroke, {
+						Color = StrokeColor,
+						Transparency = StrokeTransparency,
+					}, nil, Tween.Info("Quint", "Out", 0.16))
+					Tween(self.Title, {
+						TextColor3 = TitleColor,
+					}, nil, Tween.Info("Quint", "Out", 0.16))
+					Tween(self.Path, {
+						TextColor3 = PathColor,
+					}, nil, Tween.Info("Quint", "Out", 0.16))
+				else
+					self.Button.BackgroundColor3 = ButtonColor
+					self.Button.BackgroundTransparency = ButtonTransparency
+					self.Stroke.Color = StrokeColor
+					self.Stroke.Transparency = StrokeTransparency
+					self.Title.TextColor3 = TitleColor
+					self.Path.TextColor3 = PathColor
+				end
+			end
+
+			ResultButton.MouseEnter:Connect(function()
+				Card.Hovering = true
+				Card:ApplyState(true)
+			end)
+
+			ResultButton.MouseLeave:Connect(function()
+				Card.Hovering = false
+				Card:ApplyState(true)
+			end)
+
+			ResultButton.MouseButton1Click:Connect(function()
+				OpenSearchMatch(Card.Match)
+			end)
+
+			SearchResultCards[Index] = Card
+			return Card
+		end
 
 		local function RefreshSearchSurface()
 			UpdateSearchIconState()
@@ -11264,7 +11439,7 @@ function Starlight:CreateWindow(WindowSettings)
 			end
 		end
 
-		local function OpenSearchMatch(Match)
+		OpenSearchMatch = function(Match)
 			if not Match then
 				return
 			end
@@ -11293,14 +11468,15 @@ function Starlight:CreateWindow(WindowSettings)
 		end
 
 		RenderSearchResults = function(Query)
-			for _, Child in ipairs(SearchResultsList:GetChildren()) do
-				if Child:IsA("GuiObject") then
-					Child:Destroy()
-				end
-			end
-
 			SearchMatches = {}
 			Query = string.lower(Query or "")
+
+			for _, Card in ipairs(SearchResultCards) do
+				Card.Match = nil
+				Card.Hovering = false
+				Card.Button.Visible = false
+				Card.Button.Parent = nil
+			end
 
 			if String.IsEmptyOrNull(Query) then
 				SearchResults.Visible = false
@@ -11332,107 +11508,26 @@ function Starlight:CreateWindow(WindowSettings)
 
 			for Index = 1, VisibleCount do
 				local Match = RankedMatches[Index].Entry
+				local Card = GetSearchResultCard(Index)
+
 				table.insert(SearchMatches, Match)
+				Card.Match = Match
+				Card.Title.Text = Match.Name
+				Card.Path.Text = Match.Path
+				Card.Hovering = false
+				Card.Button.Parent = SearchResultsList
+				Card.Button.Visible = true
+				Card:ApplyState(false)
+			end
 
-				local ResultButton = Instance.new("TextButton")
-				ResultButton.AutoButtonColor = false
-				ResultButton.BackgroundTransparency = 0
-				ResultButton.BorderSizePixel = 0
-				ResultButton.Size = UDim2.new(1, 0, 0, 42)
-				ResultButton.Text = ""
-				ResultButton.ZIndex = 21
-				ResultButton.Parent = SearchResultsList
-
-				local ResultCorner = Instance.new("UICorner")
-				ResultCorner.CornerRadius = UDim.new(0, 5)
-				ResultCorner.Parent = ResultButton
-
-				local ResultStroke = Instance.new("UIStroke")
-				ResultStroke.Transparency = 0.55
-				ResultStroke.Parent = ResultButton
-
-				local ResultTitle = Instance.new("TextLabel")
-				ResultTitle.BackgroundTransparency = 1
-				ResultTitle.Font = Enum.Font.GothamMedium
-				ResultTitle.Position = UDim2.new(0, 10, 0, 6)
-				ResultTitle.Size = UDim2.new(1, -20, 0, 14)
-				ResultTitle.Text = Match.Name
-				ResultTitle.TextSize = 12
-				ResultTitle.TextTruncate = Enum.TextTruncate.AtEnd
-				ResultTitle.TextXAlignment = Enum.TextXAlignment.Left
-				ResultTitle.ZIndex = 22
-				ResultTitle.Parent = ResultButton
-
-				local ResultPath = Instance.new("TextLabel")
-				ResultPath.BackgroundTransparency = 1
-				ResultPath.Font = Enum.Font.Gotham
-				ResultPath.Position = UDim2.new(0, 10, 0, 22)
-				ResultPath.Size = UDim2.new(1, -20, 0, 12)
-				ResultPath.Text = Match.Path
-				ResultPath.TextSize = 10
-				ResultPath.TextTruncate = Enum.TextTruncate.AtEnd
-				ResultPath.TextXAlignment = Enum.TextXAlignment.Left
-				ResultPath.ZIndex = 22
-				ResultPath.Parent = ResultButton
-
-				local HoveringResult = false
-
-				local function ApplyResultState(Animate)
-					if not ResultButton.Parent then
-						return
-					end
-
-					local ButtonColor = HoveringResult and Starlight.CurrentTheme.Backgrounds.Highlight
-						or Starlight.CurrentTheme.Backgrounds.Groupbox
-					local ButtonTransparency = mainAcrylic and (HoveringResult and 0.34 or 0.48) or 0
-					local StrokeColor = HoveringResult and Starlight.CurrentTheme.Foregrounds.DarkHover
-						or Starlight.CurrentTheme.Miscellaneous.Shadow
-					local StrokeTransparency = mainAcrylic and (HoveringResult and 0.3 or 0.55) or 0.1
-					local TitleColor = HoveringResult and Starlight.CurrentTheme.Foregrounds.Active
-						or Starlight.CurrentTheme.Foregrounds.Light
-					local PathColor = HoveringResult and Starlight.CurrentTheme.Foregrounds.Light
-						or Starlight.CurrentTheme.Foregrounds.Medium
-
-					if Animate then
-						Tween(ResultButton, {
-							BackgroundColor3 = ButtonColor,
-							BackgroundTransparency = ButtonTransparency,
-						}, nil, Tween.Info("Quint", "Out", 0.16))
-						Tween(ResultStroke, {
-							Color = StrokeColor,
-							Transparency = StrokeTransparency,
-						}, nil, Tween.Info("Quint", "Out", 0.16))
-						Tween(ResultTitle, {
-							TextColor3 = TitleColor,
-						}, nil, Tween.Info("Quint", "Out", 0.16))
-						Tween(ResultPath, {
-							TextColor3 = PathColor,
-						}, nil, Tween.Info("Quint", "Out", 0.16))
-					else
-						ResultButton.BackgroundColor3 = ButtonColor
-						ResultButton.BackgroundTransparency = ButtonTransparency
-						ResultStroke.Color = StrokeColor
-						ResultStroke.Transparency = StrokeTransparency
-						ResultTitle.TextColor3 = TitleColor
-						ResultPath.TextColor3 = PathColor
-					end
+			for Index = VisibleCount + 1, #SearchResultCards do
+				local Card = SearchResultCards[Index]
+				if Card then
+					Card.Match = nil
+					Card.Hovering = false
+					Card.Button.Visible = false
+					Card.Button.Parent = nil
 				end
-
-				ResultButton.MouseEnter:Connect(function()
-					HoveringResult = true
-					ApplyResultState(true)
-				end)
-
-				ResultButton.MouseLeave:Connect(function()
-					HoveringResult = false
-					ApplyResultState(true)
-				end)
-
-				ApplyResultState(false)
-
-				ResultButton.MouseButton1Click:Connect(function()
-					OpenSearchMatch(Match)
-				end)
 			end
 
 			SearchResults.Visible = VisibleCount > 0
