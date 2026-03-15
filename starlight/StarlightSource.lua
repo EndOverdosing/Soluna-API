@@ -9646,7 +9646,7 @@ function Starlight:CreateWindow(WindowSettings)
 								NestedElement.Instances[1].Name = "DROPDOWN_" .. NestedIndex
 								NestedElement.Instances[2].Name = "DROPDOWN_" .. NestedIndex
 
-								Refresh()
+								Refresh(true)
 								local preoptions = table.clone(NestedElement.Values.CurrentOption or {})
 								NestedElement.Values.CurrentOption = {}
 								task.delay(1 / 60, function()
@@ -10680,6 +10680,23 @@ function Starlight:CreateWindow(WindowSettings)
 
 				local inputPath = nil
 				local selectedConfig = nil
+				local configSelection = nil
+
+				local function RefreshConfigSelection(ConfigName)
+					local options = Starlight.FileSystem:RefreshConfigList(
+						`{Starlight.FileSystem.Folder}/{folderpath}/configs`
+					)
+
+					if ConfigName ~= nil and not table.find(options, ConfigName) then
+						ConfigName = nil
+					end
+
+					selectedConfig = ConfigName
+					configSelection:Set({
+						Options = options,
+						CurrentOption = ConfigName,
+					})
+				end
 
 				inputPath = instance:CreateInput({
 					Name = "Config Name",
@@ -10732,16 +10749,12 @@ function Starlight:CreateWindow(WindowSettings)
 							})
 						end
 
+						RefreshConfigSelection(inputPath.Values.CurrentValue)
+
 						Starlight:Notification({
 							Title = "Configuration Created",
 							Icon = 6026568227,
 							Content = string.format("Created config %q", inputPath.Values.CurrentValue),
-						})
-
-						instance.Elements["__prebuiltConfigSelector_lbl"].NestedElements["__prebuiltConfigSelector_lbl"]:Set({
-							Options = Starlight.FileSystem:RefreshConfigList(
-								`{Starlight.FileSystem.Folder}/{folderpath}/configs`
-							),
 						})
 					end,
 					Style = 1,
@@ -10749,7 +10762,7 @@ function Starlight:CreateWindow(WindowSettings)
 
 				instance:CreateDivider()
 
-				local configSelection = instance
+				configSelection = instance
 					:CreateLabel({
 						Name = "Select Config",
 						Tooltip = "Select a config for this section to work on.",
@@ -10845,11 +10858,7 @@ function Starlight:CreateWindow(WindowSettings)
 					CenterContent = ButtonsCentered,
 					Tooltip = "Manually refresh the list of configurations incase of any errors.",
 					Callback = function()
-						instance.Elements["__prebuiltConfigSelector_lbl"].NestedElements["__prebuiltConfigSelector_lbl"]:Set({
-							Options = Starlight.FileSystem:RefreshConfigList(
-								`{Starlight.FileSystem.Folder}/{folderpath}/configs`
-							),
-						})
+						RefreshConfigSelection(selectedConfig)
 					end,
 					Style = 2,
 				}, "__prebuiltConfigRefresher")
@@ -10953,12 +10962,7 @@ function Starlight:CreateWindow(WindowSettings)
 							loadlabel:Set({ Content = "None" })
 						end
 
-						instance.Elements["__prebuiltConfigSelector_lbl"].NestedElements["__prebuiltConfigSelector_lbl"]:Set({
-							Options = Starlight.FileSystem:RefreshConfigList(
-								`{Starlight.FileSystem.Folder}/{folderpath}/configs`
-							),
-							CurrentOption = "",
-						})
+						RefreshConfigSelection(nil)
 
 						Starlight:Notification({
 							Title = "Configuration Deleted",
