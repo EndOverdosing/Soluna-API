@@ -158,6 +158,7 @@ local Mouse = Player:GetMouse()
 local GuiInset, _ = GuiService:GetGuiInset()
 GuiInset = GuiInset.Y - 20
 local themeEvent = Instance.new("BindableEvent")
+local windowVisibilityEvent = Instance.new("BindableEvent")
 
 local mainAcrylic = true
 local notificationAcrylic = true
@@ -1042,6 +1043,14 @@ end
 local tooltipStates = setmetatable({}, { __mode = "k" })
 
 connections.__tooltipUpdater = RunService.RenderStepped:Connect(function(dt)
+	if Starlight.Minimized or not Starlight.Instance or not Starlight.Instance.Parent then
+		for tooltip, state in pairs(tooltipStates) do
+			state.IsHovering = false
+			tooltip.Visible = false
+		end
+		return
+	end
+
 	for tooltip, state in pairs(tooltipStates) do
 		if not state.IsHovering then
 			continue
@@ -1598,6 +1607,7 @@ local function Hide(Interface, JustHide: boolean?, Notify: boolean?, Bind: strin
 	end
 
 	Starlight.Minimized = true
+	windowVisibilityEvent:Fire(false)
 end
 
 local function Unhide(Interface)
@@ -1608,6 +1618,7 @@ local function Unhide(Interface)
 	end
 
 	Starlight.Minimized = false
+	windowVisibilityEvent:Fire(true)
 end
 
 -- Maximizes the window
@@ -3006,7 +3017,7 @@ function Starlight:CreateWindow(WindowSettings)
 				ThemeMethods.bindTheme(shadow, "ImageColor3", "Miscellaneous.LighterShadow")
 			end
 
-			acrylicEvent.Event:Connect(function()
+			ConnectOwned(Modal.Instance, acrylicEvent.Event, function()
 				if mainAcrylic then
 					Modal.Instance.BackgroundTransparency = 0.7
 				else
@@ -3199,6 +3210,59 @@ function Starlight:CreateWindow(WindowSettings)
 
 	local prebuiltTabSection = nil
 
+	local function IsInterfaceRuntimeActive()
+		return not Starlight.Minimized and Starlight.Instance ~= nil and Starlight.Instance.Parent ~= nil
+	end
+
+	local function IsTabRuntimeActive(TabReference)
+		return IsInterfaceRuntimeActive()
+			and Starlight.Window.CurrentTab == TabReference
+			and tabs.UIPageLayout.CurrentPage == TabReference.Instances.Page
+	end
+
+	local function ApplyTabButtonState(TabReference, Active, Animate)
+		local Button = TabReference.Instances.Button
+		local BackgroundTransparency = Active and 0.5 or 1
+		local ForegroundColor = Active and Starlight.CurrentTheme.Foregrounds.Light
+			or (TabReference.Hover and Starlight.CurrentTheme.Foregrounds.Light or Starlight.CurrentTheme.Foregrounds.Medium)
+
+		if Animate then
+			Tween(Button, { BackgroundTransparency = BackgroundTransparency })
+			Tween(Button.Icon, { ImageColor3 = ForegroundColor })
+			Tween(Button.Header, { TextColor3 = ForegroundColor })
+		else
+			Button.BackgroundTransparency = BackgroundTransparency
+			Button.Icon.ImageColor3 = ForegroundColor
+			Button.Header.TextColor3 = ForegroundColor
+		end
+
+		Button.Icon.AccentBrighter.Enabled = Active
+		Button.Header.AccentBrighter.Enabled = Active
+	end
+
+	local function SetCurrentTab(TabReference, Animate)
+		local CurrentTab = Starlight.Window.CurrentTab
+		if CurrentTab == TabReference then
+			if tabs.UIPageLayout.CurrentPage ~= TabReference.Instances.Page then
+				tabs.UIPageLayout:JumpTo(TabReference.Instances.Page)
+			end
+			return
+		end
+
+		if CurrentTab ~= nil then
+			CurrentTab.Active = false
+			ApplyTabButtonState(CurrentTab, false, Animate)
+		end
+
+		TabReference.Active = true
+		Starlight.Window.CurrentTab = TabReference
+		ApplyTabButtonState(TabReference, true, Animate)
+
+		if tabs.UIPageLayout.CurrentPage ~= TabReference.Instances.Page then
+			tabs.UIPageLayout:JumpTo(TabReference.Instances.Page)
+		end
+	end
+
 	local homeTabCalled: boolean? = false
 	function Starlight.Window:CreateHomeTab(TabSettings)
 		TabSettings.UnsupportedExecutors = TabSettings.UnsupportedExecutors or {}
@@ -3243,34 +3307,8 @@ function Starlight:CreateWindow(WindowSettings)
 
 		Tab.Instances.Page.LayoutOrder = -1
 
-		local function Activate() -- so i dont have to rewrite shit again
-			Tween(Tab.Instances.Button, { BackgroundTransparency = 0.5 })
-			Tween(Tab.Instances.Button.Icon, { ImageColor3 = Starlight.CurrentTheme.Foregrounds.Light })
-			Tween(Tab.Instances.Button.Header, { TextColor3 = Starlight.CurrentTheme.Foregrounds.Light })
-			Tab.Instances.Button.Icon.AccentBrighter.Enabled = true
-			Tab.Instances.Button.Header.AccentBrighter.Enabled = true
-
-			for i, v in pairs(Starlight.Window.TabSections) do
-				for _, tab in pairs(v.Tabs) do
-					tab.Active = false
-				end
-			end
-
-			for _, OtherTabSection in pairs(navigation:GetChildren()) do
-				for _, OtherTab in pairs(OtherTabSection:GetChildren()) do
-					if OtherTab.ClassName == "Frame" and OtherTab ~= Tab.Instances.Button then
-						Tween(OtherTab, { BackgroundTransparency = 1 })
-						Tween(OtherTab.Icon, { ImageColor3 = Starlight.CurrentTheme.Foregrounds.Medium })
-						Tween(OtherTab.Header, { TextColor3 = Starlight.CurrentTheme.Foregrounds.Medium })
-						OtherTab.Icon.AccentBrighter.Enabled = false
-						OtherTab.Header.AccentBrighter.Enabled = false
-					end
-				end
-			end
-
-			Tab.Active = true
-			Starlight.Window.CurrentTab = Tab
-			tabs.UIPageLayout:JumpTo(Tab.Instances.Page)
+		local function Activate()
+			SetCurrentTab(Tab, true)
 		end
 
 		repeat
@@ -3335,6 +3373,11 @@ function Starlight:CreateWindow(WindowSettings)
 
 		local homeTabClockAccumulator = 1
 		connections.__homeTabTime = RunService.Heartbeat:Connect(function(dt)
+			if not IsTabRuntimeActive(Tab) then
+				homeTabClockAccumulator = 1
+				return
+			end
+
 			homeTabClockAccumulator += dt
 			if homeTabClockAccumulator < 1 then
 				return
@@ -3531,6 +3574,12 @@ function Starlight:CreateWindow(WindowSettings)
 		end
 
 		local function HeartbeatUpdate(dt)
+			if not IsTabRuntimeActive(Tab) then
+				elapsedSinceRefresh = 0
+				elapsedFrames = 0
+				return
+			end
+
 			elapsedSinceRefresh += dt
 			elapsedFrames += 1
 			if elapsedSinceRefresh < 1 then
@@ -3564,10 +3613,8 @@ function Starlight:CreateWindow(WindowSettings)
 		ThemeMethods.bindTheme(Tab.Instances.Button.Header.AccentBrighter, "Color", "Accents.Brighter")
 		ThemeMethods.bindTheme(Tab.Instances.Button.Icon, "ImageColor3", "Foregrounds.Medium")
 		ThemeMethods.bindTheme(Tab.Instances.Button.Header, "TextColor3", "Foregrounds.Medium")
-		themeEvent.Event:Connect(function()
-			if tabs.UIPageLayout.CurrentPage == Tab.Instances.Page then
-				Activate()
-			end
+		ConnectOwned(Tab.Instances.Button, themeEvent.Event, function()
+			ApplyTabButtonState(Tab, Starlight.Window.CurrentTab == Tab, false)
 		end)
 		ThemeMethods.bindTheme(Tab.Instances.Page.Fade, "BackgroundColor3", "Backgrounds.Dark")
 		ThemeMethods.bindTheme(Tab.Instances.Page.Fade2, "BackgroundColor3", "Backgrounds.Dark")
@@ -3696,34 +3743,8 @@ function Starlight:CreateWindow(WindowSettings)
 
 			Tab.Instances.Page.LayoutOrder = #tabs:GetChildren() - 2
 
-			local function Activate() -- so i dont have to rewrite shit again
-				Tween(Tab.Instances.Button, { BackgroundTransparency = 0.5 })
-				Tween(Tab.Instances.Button.Icon, { ImageColor3 = Starlight.CurrentTheme.Foregrounds.Light })
-				Tween(Tab.Instances.Button.Header, { TextColor3 = Starlight.CurrentTheme.Foregrounds.Light })
-				Tab.Instances.Button.Icon.AccentBrighter.Enabled = true
-				Tab.Instances.Button.Header.AccentBrighter.Enabled = true
-
-				for i, v in pairs(Starlight.Window.TabSections) do
-					for _, tab in pairs(v.Tabs) do
-						tab.Active = false
-					end
-				end
-
-				for _, OtherTabSection in pairs(navigation:GetChildren()) do
-					for _, OtherTab in pairs(OtherTabSection:GetChildren()) do
-						if OtherTab.ClassName == "Frame" and OtherTab ~= Tab.Instances.Button then
-							Tween(OtherTab, { BackgroundTransparency = 1 })
-							Tween(OtherTab.Icon, { ImageColor3 = Starlight.CurrentTheme.Foregrounds.Medium })
-							Tween(OtherTab.Header, { TextColor3 = Starlight.CurrentTheme.Foregrounds.Medium })
-							OtherTab.Icon.AccentBrighter.Enabled = false
-							OtherTab.Header.AccentBrighter.Enabled = false
-						end
-					end
-				end
-
-				Tab.Active = true
-				Starlight.Window.CurrentTab = Tab
-				tabs.UIPageLayout:JumpTo(Tab.Instances.Page)
+			local function Activate()
+				SetCurrentTab(Tab, true)
 			end
 
 			if Starlight.Window.CurrentTab == nil then
@@ -3778,10 +3799,8 @@ function Starlight:CreateWindow(WindowSettings)
 			ThemeMethods.bindTheme(Tab.Instances.Button.Header.AccentBrighter, "Color", "Accents.Brighter")
 			ThemeMethods.bindTheme(Tab.Instances.Button.Icon, "ImageColor3", "Foregrounds.Medium")
 			ThemeMethods.bindTheme(Tab.Instances.Button.Header, "TextColor3", "Foregrounds.Medium")
-			themeEvent.Event:Connect(function()
-				if tabs.UIPageLayout.CurrentPage == Tab.Instances.Page then
-					Activate()
-				end
+			ConnectOwned(Tab.Instances.Button, themeEvent.Event, function()
+				ApplyTabButtonState(Tab, Starlight.Window.CurrentTab == Tab, false)
 			end)
 
 			TabSettings.Page.Parent = Tab.Instances.Page
@@ -4084,7 +4103,7 @@ function Starlight:CreateWindow(WindowSettings)
 			RegisterMaterial(LeftBackdrop, LeftInner, LeftStroke, 0.66, 0, 0.46, 0, 0.62, 0)
 			RegisterMaterial(RightBackdrop, RightInner, RightStroke, 0.66, 0, 0.46, 0, 0.62, 0)
 			RefreshBrowserMaterials()
-			acrylicEvent.Event:Connect(RefreshBrowserMaterials)
+			ConnectOwned(Tab.Instances.Page, acrylicEvent.Event, RefreshBrowserMaterials)
 
 			function Tab:SetBrowserHeader(HeaderText, SubheaderText)
 				RightHeader.Text = HeaderText or ""
@@ -4288,10 +4307,10 @@ function Starlight:CreateWindow(WindowSettings)
 						ApplyCategoryState(true)
 					end)
 
-					themeEvent.Event:Connect(function()
+					ConnectOwned(Button, themeEvent.Event, function()
 						ApplyCategoryState(false)
 					end)
-					acrylicEvent.Event:Connect(function()
+					ConnectOwned(Button, acrylicEvent.Event, function()
 						ApplyCategoryState(false)
 					end)
 					ApplyCategoryState(false)
@@ -4519,10 +4538,10 @@ function Starlight:CreateWindow(WindowSettings)
 						ApplyCardState(true)
 					end)
 
-					themeEvent.Event:Connect(function()
+					ConnectOwned(Card, themeEvent.Event, function()
 						ApplyCardState(false)
 					end)
-					acrylicEvent.Event:Connect(function()
+					ConnectOwned(Card, acrylicEvent.Event, function()
 						ApplyCardState(false)
 					end)
 					ApplyCardState(false)
@@ -4587,34 +4606,8 @@ function Starlight:CreateWindow(WindowSettings)
 
 			Tab.Instances.Page.LayoutOrder = #tabs:GetChildren() - 2
 
-			local function Activate() -- so i dont have to rewrite shit again
-				Tween(Tab.Instances.Button, { BackgroundTransparency = 0.5 })
-				Tween(Tab.Instances.Button.Icon, { ImageColor3 = Starlight.CurrentTheme.Foregrounds.Light })
-				Tween(Tab.Instances.Button.Header, { TextColor3 = Starlight.CurrentTheme.Foregrounds.Light })
-				Tab.Instances.Button.Icon.AccentBrighter.Enabled = true
-				Tab.Instances.Button.Header.AccentBrighter.Enabled = true
-
-				for i, v in pairs(Starlight.Window.TabSections) do
-					for _, tab in pairs(v.Tabs) do
-						tab.Active = false
-					end
-				end
-
-				for _, OtherTabSection in pairs(navigation:GetChildren()) do
-					for _, OtherTab in pairs(OtherTabSection:GetChildren()) do
-						if OtherTab.ClassName == "Frame" and OtherTab ~= Tab.Instances.Button then
-							Tween(OtherTab, { BackgroundTransparency = 1 })
-							Tween(OtherTab.Icon, { ImageColor3 = Starlight.CurrentTheme.Foregrounds.Medium })
-							Tween(OtherTab.Header, { TextColor3 = Starlight.CurrentTheme.Foregrounds.Medium })
-							OtherTab.Icon.AccentBrighter.Enabled = false
-							OtherTab.Header.AccentBrighter.Enabled = false
-						end
-					end
-				end
-
-				Tab.Active = true
-				Starlight.Window.CurrentTab = Tab
-				tabs.UIPageLayout:JumpTo(Tab.Instances.Page)
+			local function Activate()
+				SetCurrentTab(Tab, true)
 			end
 
 			if Starlight.Window.CurrentTab == nil then
@@ -4706,7 +4699,7 @@ function Starlight:CreateWindow(WindowSettings)
 					end
 					fadebottom.Visible = tabs.UIPageLayout.CurrentPage == Tab.Instances.Page
 				end
-				acrylicEvent.Event:Connect(function()
+				ConnectOwned(column, acrylicEvent.Event, function()
 					if mainAcrylic then
 						basetrans = 0.7
 						updTop()
@@ -4718,10 +4711,10 @@ function Starlight:CreateWindow(WindowSettings)
 					end
 				end)
 
-				column:GetPropertyChangedSignal("CanvasPosition"):Connect(updTop)
-				column:GetPropertyChangedSignal("CanvasPosition"):Connect(updBottom)
-				tabs.UIPageLayout:GetPropertyChangedSignal("CurrentPage"):Connect(updTop)
-				tabs.UIPageLayout:GetPropertyChangedSignal("CurrentPage"):Connect(updBottom)
+				ConnectOwned(column, column:GetPropertyChangedSignal("CanvasPosition"), updTop)
+				ConnectOwned(column, column:GetPropertyChangedSignal("CanvasPosition"), updBottom)
+				ConnectOwned(column, tabs.UIPageLayout:GetPropertyChangedSignal("CurrentPage"), updTop)
+				ConnectOwned(column, tabs.UIPageLayout:GetPropertyChangedSignal("CurrentPage"), updBottom)
 
 				task.delay(1.2, function()
 					updTop()
@@ -4738,10 +4731,8 @@ function Starlight:CreateWindow(WindowSettings)
 			ThemeMethods.bindTheme(Tab.Instances.Button.Header.AccentBrighter, "Color", "Accents.Brighter")
 			ThemeMethods.bindTheme(Tab.Instances.Button.Icon, "ImageColor3", "Foregrounds.Medium")
 			ThemeMethods.bindTheme(Tab.Instances.Button.Header, "TextColor3", "Foregrounds.Medium")
-			themeEvent.Event:Connect(function()
-				if tabs.UIPageLayout.CurrentPage == Tab.Instances.Page then
-					Activate()
-				end
+			ConnectOwned(Tab.Instances.Button, themeEvent.Event, function()
+				ApplyTabButtonState(Tab, Starlight.Window.CurrentTab == Tab, false)
 			end)
 
 			--// SUBSECTION : User Methods
@@ -4856,7 +4847,7 @@ function Starlight:CreateWindow(WindowSettings)
 					)
 					ThemeMethods.bindTheme(Groupbox.Instance.PART_Backdrop.UIStroke, "Color", "Miscellaneous.Shadow")
 
-					acrylicEvent.Event:Connect(function()
+					ConnectOwned(Groupbox.Instance, acrylicEvent.Event, function()
 						if mainAcrylic then
 							Groupbox.Instance.PART_Backdrop.BackgroundTransparency = 0.7
 							Groupbox.Instance.PART_Backdrop.Inner.BackgroundTransparency = 0.7
@@ -5566,6 +5557,7 @@ function Starlight:CreateWindow(WindowSettings)
 					Element.Instances.Popup = mainWindow["Popup Overlay"].Dropdown_TEMPLATE:Clone()
 					Element.Instances.Popup.Parent = mainWindow["Popup Overlay"]
 					Element.Instances.Popup.Header.Text = ElementSettings.Name
+					local popupOutsideClickConnection
 
 
 					--// Interaction System \\--
@@ -5573,14 +5565,28 @@ function Starlight:CreateWindow(WindowSettings)
 						mainWindow["Popup Overlay"].Visible = true
 						Element.Instances.Popup.Visible = true
 
-						UserInputService.InputBegan:Connect(function(i, g)
+						DisconnectConnection(popupOutsideClickConnection)
+						popupOutsideClickConnection = UserInputService.InputBegan:Connect(function(i, g)
 							if g or i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 							local p, pos, size = i.Position, Element.Instances.Popup.AbsolutePosition, Element.Instances.Popup.AbsoluteSize
 							if not (p.X >= pos.X and p.X <= pos.X + size.X and p.Y >= pos.Y and p.Y <= pos.Y + size.Y) then
 								mainWindow["Popup Overlay"].Visible = false
 								Element.Instances.Popup.Visible = false
+								DisconnectConnection(popupOutsideClickConnection)
+								popupOutsideClickConnection = nil
 							end
 						end)
+					end)
+
+					ConnectOwned(Element.Instances.Popup, windowVisibilityEvent.Event, function(visible)
+						if visible then
+							return
+						end
+
+						mainWindow["Popup Overlay"].Visible = false
+						Element.Instances.Popup.Visible = false
+						DisconnectConnection(popupOutsideClickConnection)
+						popupOutsideClickConnection = nil
 					end)
 
 					local function ActivateColorSingle(name)
@@ -6557,7 +6563,7 @@ function Starlight:CreateWindow(WindowSettings)
 									"BackgroundColor3",
 									"Foregrounds.Active"
 								)
-								themeEvent.Event:Connect(function()
+								ConnectOwned(ElementInstance, themeEvent.Event, function()
 									Set(Element.Values.CurrentValue)
 								end)
 							end
@@ -8198,6 +8204,13 @@ function Starlight:CreateWindow(WindowSettings)
 								NestedElement.Instances[2].Container.Color.OldColor.Frame.BackgroundTransparency = NestedElement.Values.Transparency
 									or 0
 							end
+							ConnectOwned(NestedElement.Instances[2], windowVisibilityEvent.Event, function(visible)
+								if visible then
+									return
+								end
+
+								close()
+							end)
 
 							ConnectOwned(
 								NestedElement.Instances[2],
@@ -8949,7 +8962,7 @@ function Starlight:CreateWindow(WindowSettings)
 								ThemeMethods.bindTheme(button, "TextColor3", "Foregrounds.Medium")
 								ThemeMethods.bindTheme(button.Accent, "Color", "Accents.Main")
 							end
-							themeEvent.Event:Connect(function()
+							ConnectOwned(NestedElement.Instances[2], themeEvent.Event, function()
 								NestedElement.Instances[2].TabSelector[NestedElement.Instances[2].Container.UIPageLayout.CurrentPage.Name].TextColor3 =
 									Color3.new(1, 1, 1)
 							end)
@@ -9087,7 +9100,7 @@ function Starlight:CreateWindow(WindowSettings)
 								end
 							end
 
-							acrylicEvent.Event:Connect(function()
+							ConnectOwned(NestedElement.Instances[2], acrylicEvent.Event, function()
 								if mainAcrylic then
 									NestedElement.Instances[2].BackgroundTransparency = 0.5
 								else
@@ -9494,6 +9507,13 @@ function Starlight:CreateWindow(WindowSettings)
 									end
 								end)
 							end
+							ConnectOwned(NestedElement.Instances[2], windowVisibilityEvent.Event, function(visible)
+								if visible then
+									return
+								end
+
+								close()
+							end)
 							if NestedElement.Values.Special == 2 then
 								ConnectOwned(NestedElement.Instances[2], Teams.ChildAdded, function()
 									if not pcall(Refresh) then
@@ -11400,6 +11420,14 @@ function Starlight:CreateWindow(WindowSettings)
 			UpdateSearchIconState()
 		end
 
+		ConnectOwned(SearchRoot, windowVisibilityEvent.Event, function(visible)
+			if visible then
+				return
+			end
+
+			CloseSearchSurface()
+		end)
+
 		ThemeMethods.bindTheme(SearchSurface, "BackgroundColor3", "Backgrounds.Medium")
 		ThemeMethods.bindTheme(SearchSurfaceInner, "BackgroundColor3", "Backgrounds.Groupbox")
 		ThemeMethods.bindTheme(SearchSurfaceStroke, "Color", "Miscellaneous.Shadow")
@@ -11418,7 +11446,7 @@ function Starlight:CreateWindow(WindowSettings)
 		end)
 		ApplySearchMaterial()
 
-		SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
+		ConnectOwned(SearchRoot, SearchInput:GetPropertyChangedSignal("Text"), function()
 			if SearchOpen then
 				RenderSearchResults(SearchInput.Text)
 			end
