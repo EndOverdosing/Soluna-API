@@ -1605,9 +1605,6 @@ local function Hide(Interface, JustHide: boolean?, Notify: boolean?, Bind: strin
 			})
 		end
 	end
-
-	Starlight.Minimized = true
-	windowVisibilityEvent:Fire(false)
 end
 
 local function Unhide(Interface)
@@ -1616,9 +1613,6 @@ local function Unhide(Interface)
 	else
 		Interface.Visible = true
 	end
-
-	Starlight.Minimized = false
-	windowVisibilityEvent:Fire(true)
 end
 
 -- Maximizes the window
@@ -1706,6 +1700,10 @@ local function AddToolTip(InfoStr, HoverInstance)
 	end)
 
 	if HoverInstance then
+		RegisterOwnedCleanup(HoverInstance, function()
+			tooltip:Destroy()
+		end)
+
 		ConnectOwned(tooltip, HoverInstance.MouseEnter, function()
 			tooltipStates[tooltip].IsHovering = true
 			tooltipStates[tooltip].LastMousePos = Vector2.new(Mouse.X, Mouse.Y)
@@ -1746,40 +1744,35 @@ end
 -- Taken From Luna Interface Suite, A Nebula Softworks Product
 local function makeDraggable(Bar, Window: Frame, dragBar, enableTaptic, tapticOffset)
 	pcall(function()
-		local Dragging, DragInput, MousePos, FramePos
-
-		local dragInteract = dragBar and dragBar.Interact
+		local Dragging = false
+		local DragInput, MousePos, FramePos
 		local dragBarCosmetic = dragBar and dragBar.DragCosmetic
 
-		local function connectMethods()
-			if dragBar and enableTaptic then
-				dragBar.MouseEnter:Connect(function()
-					if not Dragging then
-						Tween(
-							dragBarCosmetic,
-							{ BackgroundTransparency = 0.5, Size = UDim2.new(0, 120, 0, 4) },
-							nil,
-							TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-						)
-					end
-				end)
+		if dragBar and enableTaptic then
+			ConnectOwned(Window, dragBar.MouseEnter, function()
+				if not Dragging then
+					Tween(
+						dragBarCosmetic,
+						{ BackgroundTransparency = 0.5, Size = UDim2.new(0, 120, 0, 4) },
+						nil,
+						TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+					)
+				end
+			end)
 
-				dragBar.MouseLeave:Connect(function()
-					if not Dragging then
-						Tween(
-							dragBarCosmetic,
-							{ BackgroundTransparency = 0.7, Size = UDim2.new(0, 100, 0, 4) },
-							nil,
-							TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-						)
-					end
-				end)
-			end
+			ConnectOwned(Window, dragBar.MouseLeave, function()
+				if not Dragging then
+					Tween(
+						dragBarCosmetic,
+						{ BackgroundTransparency = 0.7, Size = UDim2.new(0, 100, 0, 4) },
+						nil,
+						TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+					)
+				end
+			end)
 		end
 
-		connectMethods()
-
-		Bar.InputBegan:Connect(function(Input)
+		ConnectOwned(Window, Bar.InputBegan, function(Input)
 			if
 				Input.UserInputType == Enum.UserInputType.MouseButton1
 				or Input.UserInputType == Enum.UserInputType.Touch
@@ -1797,10 +1790,11 @@ local function makeDraggable(Bar, Window: Frame, dragBar, enableTaptic, tapticOf
 					)
 				end
 
-				Input.Changed:Connect(function()
+				local releaseConnection
+				releaseConnection = Input.Changed:Connect(function()
 					if Input.UserInputState == Enum.UserInputState.End then
+						DisconnectConnection(releaseConnection)
 						Dragging = false
-						connectMethods()
 
 						if enableTaptic then
 							Tween(
@@ -1815,7 +1809,7 @@ local function makeDraggable(Bar, Window: Frame, dragBar, enableTaptic, tapticOf
 			end
 		end)
 
-		Bar.InputChanged:Connect(function(Input)
+		ConnectOwned(Window, Bar.InputChanged, function(Input)
 			if
 				Input.UserInputType == Enum.UserInputType.MouseMovement
 				or Input.UserInputType == Enum.UserInputType.Touch
@@ -1824,10 +1818,8 @@ local function makeDraggable(Bar, Window: Frame, dragBar, enableTaptic, tapticOf
 			end
 		end)
 
-		local debounce = false
-		UserInputService.InputChanged:Connect(function(Input)
+		ConnectOwned(Window, UserInputService.InputChanged, function(Input)
 			if Input == DragInput and Dragging then
-				debounce = true
 				if Starlight.Maximized then
 					Unmaximize(Window, true)
 				end
@@ -1839,49 +1831,29 @@ local function makeDraggable(Bar, Window: Frame, dragBar, enableTaptic, tapticOf
 					FramePos.Y.Scale,
 					FramePos.Y.Offset + Delta.Y
 				)
-				Tween(
-					Window,
-					{ Position = newMainPosition },
-					nil,
-					TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
-				)
+				Window.Position = newMainPosition
 
 				if dragBar then
-					local newDragBarPosition = UDim2.new(
+					dragBar.Position = UDim2.new(
 						FramePos.X.Scale,
 						FramePos.X.Offset + Delta.X + Window.Size.X.Offset / 2,
 						FramePos.Y.Scale,
 						FramePos.Y.Offset + Delta.Y + Window.Size.Y.Offset + 10
 					)
-					Tween(dragBar, { Position = newDragBarPosition }, function()
-						debounce = false
-					end, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out))
 				end
 			end
 		end)
 
-		Window:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-			if not debounce then
-				local newMainPosition = UDim2.new(
-					Window.Position.X.Scale,
-					Window.Position.X.Offset,
-					Window.Position.Y.Scale,
-					Window.Position.Y.Offset
-				)
-				local newDragBarPosition = UDim2.new(
+		if dragBar then
+			ConnectOwned(Window, Window:GetPropertyChangedSignal("AbsoluteSize"), function()
+				dragBar.Position = UDim2.new(
 					Window.Position.X.Scale,
 					Window.Position.X.Offset + Window.Size.X.Offset / 2,
 					Window.Position.Y.Scale,
 					Window.Position.Y.Offset + Window.Size.Y.Offset + 10
 				)
-				Tween(
-					dragBar,
-					{ Position = newDragBarPosition },
-					nil,
-					TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
-				)
-			end
-		end)
+			end)
+		end
 	end)
 end
 
@@ -1890,7 +1862,7 @@ local function makeResizable(Handle, Window: Frame, MinSize, MaxSize)
 		local Resizing = false
 		local DragInput, MousePos, FrameSize
 
-		Handle.InputBegan:Connect(function(Input)
+		ConnectOwned(Window, Handle.InputBegan, function(Input)
 			if
 				(Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch)
 				and not Starlight.Maximized
@@ -1899,15 +1871,17 @@ local function makeResizable(Handle, Window: Frame, MinSize, MaxSize)
 				MousePos = Input.Position
 				FrameSize = Window.Size
 
-				Input.Changed:Connect(function()
+				local releaseConnection
+				releaseConnection = Input.Changed:Connect(function()
 					if Input.UserInputState == Enum.UserInputState.End then
+						DisconnectConnection(releaseConnection)
 						Resizing = false
 					end
 				end)
 			end
 		end)
 
-		Handle.InputChanged:Connect(function(Input)
+		ConnectOwned(Window, Handle.InputChanged, function(Input)
 			if
 				Input.UserInputType == Enum.UserInputType.MouseMovement
 				or Input.UserInputType == Enum.UserInputType.Touch
@@ -1916,7 +1890,7 @@ local function makeResizable(Handle, Window: Frame, MinSize, MaxSize)
 			end
 		end)
 
-		UserInputService.InputChanged:Connect(function(Input)
+		ConnectOwned(Window, UserInputService.InputChanged, function(Input)
 			if Input == DragInput and Resizing then
 				local Delta = Input.Position - MousePos
 				local newWidth = math.clamp(FrameSize.X.Offset + Delta.X, MinSize.X, MaxSize.X)
@@ -2305,6 +2279,8 @@ function Starlight:Notification(data)
 	task.spawn(function()
 		local notificationConnections = {}
 		local creationTime = tick()
+		local timeUpdateConnection
+		local cleanedUp = false
 
 		-- Notification Object Creation
 		local newNotification = Resources.Elements.NotificationTemplate:Clone()
@@ -2317,6 +2293,31 @@ function Starlight:Notification(data)
 		pcall(function()
 			AcrylicObject.AddParent(newNotification)
 			AcrylicObject.Frame.Parent = newNotification
+		end)
+		RegisterOwnedCleanup(newNotification, function()
+			if cleanedUp then
+				return
+			end
+
+			cleanedUp = true
+			pcall(function()
+				if timeUpdateConnection then
+					task.cancel(timeUpdateConnection)
+				end
+			end)
+			pcall(function()
+				if AcrylicObject and AcrylicObject.Model then
+					AcrylicObject.Model:Destroy()
+				end
+				if AcrylicObject and AcrylicObject.Frame then
+					AcrylicObject.Frame:Destroy()
+				end
+			end)
+			for _, conn in pairs(notificationConnections) do
+				pcall(function()
+					conn:Disconnect()
+				end)
+			end
 		end)
 
 		local function setDuration(elapsed)
@@ -2331,14 +2332,17 @@ function Starlight:Notification(data)
 			end
 		end
 
-		local timeUpdateConnection
-		timeUpdateConnection = task.spawn(function()
-			while newNotification and newNotification.Parent do
-				pcall(setDuration, tick() - creationTime)
-				task.wait(1)
-			end
-		end)
-		table.insert(notificationConnections, { Disconnect = function() pcall(function() task.cancel(timeUpdateConnection) end) end })
+		data.Duration = data.Duration or math.min(math.max((#(data.Content or "") * 0.1) + 2.5, 3), 10)
+		if data.Duration >= 0 then
+			timeUpdateConnection = task.spawn(function()
+				while newNotification and newNotification.Parent do
+					pcall(setDuration, tick() - creationTime)
+					task.wait(1)
+				end
+			end)
+		else
+			newNotification.Time.Text = "pinned"
+		end
 
 		table.insert(notificationConnections, notificationAcrylicEvent.Event:Connect(function()
 			if newNotification.BackgroundTransparency == 1 then
@@ -2381,8 +2385,6 @@ function Starlight:Notification(data)
 			ThemeMethods.bindTheme(newNotification.Title, "TextColor3", "Foregrounds.Light")
 			ThemeMethods.bindTheme(newNotification.Time, "TextColor3", "Foregrounds.Light")
 		end
-
-		data.Duration = data.Duration or math.min(math.max((#newNotification.Description.Text * 0.1) + 2.5, 3), 10)
 		if data.Duration >= 0 then
 			task.wait(data.Duration)
 
@@ -2391,13 +2393,9 @@ function Starlight:Notification(data)
 					CollapseNotification(newNotification)
 				end
 
-				CollectionService:AddTag(newNotification, "__starlight_ExpiredNotification")
-				pcall(function()
-					if AcrylicObject and AcrylicObject.Model then
-						AcrylicObject.Model:Destroy()
-					end
-					for _, conn in pairs(notificationConnections) do
-						pcall(function() conn:Disconnect() end)
+				task.delay(0.5, function()
+					if newNotification and newNotification.Parent then
+						newNotification:Destroy()
 					end
 				end)
 			end)
@@ -6093,7 +6091,7 @@ function Starlight:CreateWindow(WindowSettings)
 									hover = true
 								end)
 
-								UserInputService.InputEnded:Connect(function(input, processed)
+								ConnectOwned(ElementInstance, UserInputService.InputEnded, function(input, processed)
 									if not hover then
 										return
 									end
@@ -8251,6 +8249,7 @@ function Starlight:CreateWindow(WindowSettings)
 								if NestedElement.Instances[2].Visible then
 									close()
 								else
+									Refresh(true)
 									NestedElement.Instances[2].Visible = true
 									Tween(
 										NestedElement.Instances[2],
@@ -9439,13 +9438,7 @@ function Starlight:CreateWindow(WindowSettings)
 								end
 							end
 
-							local function Refresh()
-								for i, v in pairs(NestedElement.Instances[2].List:GetChildren()) do
-									if v.ClassName == "Frame" then
-										v:Destroy()
-									end
-								end
-
+							local function Refresh(forceVisible)
 								if NestedElement.Values.Special == 1 then
 									NestedElement.Values.Options = {}
 									for i, v in pairs(Players:GetChildren()) do
@@ -9456,6 +9449,16 @@ function Starlight:CreateWindow(WindowSettings)
 									NestedElement.Values.Options = {}
 									for i, v in pairs(Teams:GetChildren()) do
 										table.insert(NestedElement.Values.Options, v.Name)
+									end
+								end
+
+								if not forceVisible and not NestedElement.Instances[2].Visible then
+									return
+								end
+
+								for i, v in pairs(NestedElement.Instances[2].List:GetChildren()) do
+									if v.ClassName == "Frame" then
+										v:Destroy()
 									end
 								end
 
@@ -9506,7 +9509,7 @@ function Starlight:CreateWindow(WindowSettings)
 								end
 							end
 
-							Refresh()
+							Refresh(true)
 							NestedElement.Instances[2].Size = UDim2.fromOffset(
 								math.ceil(NestedElement.Instances[1].AbsoluteSize.X),
 								NestedElement.Instances[2].Size.Y.Offset
@@ -9898,7 +9901,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "dark")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Backgrounds.Dark }, nil, true)
 							end
@@ -9917,7 +9920,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "medium")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Backgrounds.Medium }, nil, true)
 							end
@@ -9936,7 +9939,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "light")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Backgrounds.Light }, nil, true)
 							end
@@ -9955,7 +9958,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "gb")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Backgrounds.Groupbox }, nil, true)
 							end
@@ -9974,7 +9977,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "popup")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Backgrounds.Highlight }, nil, true)
 							end
@@ -9997,7 +10000,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "dark")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Foregrounds.Dark }, nil, true)
 							end
@@ -10016,7 +10019,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "medium")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Foregrounds.Medium }, nil, true)
 							end
@@ -10035,7 +10038,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "light")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Foregrounds.Light }, nil, true)
 							end
@@ -10054,7 +10057,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "active")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Foregrounds.Active }, nil, true)
 							end
@@ -10073,7 +10076,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "dark")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Foregrounds.DarkHover }, nil, true)
 							end
@@ -10092,7 +10095,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "medium")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Foregrounds.MediumHover }, nil, true)
 							end
@@ -10114,7 +10117,7 @@ function Starlight:CreateWindow(WindowSettings)
 							debounce = false
 						end,
 					}, "dark")
-					themeEvent.Event:Connect(function()
+					ConnectOwned(instance.Instance, themeEvent.Event, function()
 						if not debounce then
 							cp:Set({ CurrentValue = Starlight.CurrentTheme.Miscellaneous.Divider }, nil, true)
 						end
@@ -10136,7 +10139,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "dark")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Miscellaneous.Shadow }, nil, true)
 							end
@@ -10155,7 +10158,7 @@ function Starlight:CreateWindow(WindowSettings)
 								debounce = false
 							end,
 						}, "light")
-						themeEvent.Event:Connect(function()
+						ConnectOwned(instance.Instance, themeEvent.Event, function()
 							if not debounce then
 								cp:Set({ CurrentValue = Starlight.CurrentTheme.Miscellaneous.LighterShadow }, nil, true)
 							end
@@ -10185,7 +10188,7 @@ function Starlight:CreateWindow(WindowSettings)
 									debounce = false
 								end,
 							}, "1")
-							themeEvent.Event:Connect(function()
+							ConnectOwned(instance.Instance, themeEvent.Event, function()
 								if not debounce then
 									cp:Set(
 										{ CurrentValue = Starlight.CurrentTheme.Accents.Main.Keypoints[1].Value },
@@ -10213,7 +10216,7 @@ function Starlight:CreateWindow(WindowSettings)
 									debounce = false
 								end,
 							}, "2")
-							themeEvent.Event:Connect(function()
+							ConnectOwned(instance.Instance, themeEvent.Event, function()
 								if not debounce then
 									cp:Set(
 										{ CurrentValue = Starlight.CurrentTheme.Accents.Main.Keypoints[2].Value },
@@ -10241,7 +10244,7 @@ function Starlight:CreateWindow(WindowSettings)
 									debounce = false
 								end,
 							}, "3")
-							themeEvent.Event:Connect(function()
+							ConnectOwned(instance.Instance, themeEvent.Event, function()
 								if not debounce then
 									cp:Set(
 										{ CurrentValue = Starlight.CurrentTheme.Accents.Main.Keypoints[3].Value },
@@ -10272,7 +10275,7 @@ function Starlight:CreateWindow(WindowSettings)
 									debounce = false
 								end,
 							}, "1")
-							themeEvent.Event:Connect(function()
+							ConnectOwned(instance.Instance, themeEvent.Event, function()
 								if not debounce then
 									cp:Set(
 										{ CurrentValue = Starlight.CurrentTheme.Accents.Brighter.Keypoints[1].Value },
@@ -10300,7 +10303,7 @@ function Starlight:CreateWindow(WindowSettings)
 									debounce = false
 								end,
 							}, "2")
-							themeEvent.Event:Connect(function()
+							ConnectOwned(instance.Instance, themeEvent.Event, function()
 								if not debounce then
 									cp:Set(
 										{ CurrentValue = Starlight.CurrentTheme.Accents.Brighter.Keypoints[2].Value },
@@ -10328,7 +10331,7 @@ function Starlight:CreateWindow(WindowSettings)
 									debounce = false
 								end,
 							}, "3")
-							themeEvent.Event:Connect(function()
+							ConnectOwned(instance.Instance, themeEvent.Event, function()
 								if not debounce then
 									cp:Set(
 										{ CurrentValue = Starlight.CurrentTheme.Accents.Brighter.Keypoints[3].Value },
@@ -10448,7 +10451,7 @@ function Starlight:CreateWindow(WindowSettings)
 							newThemeToApply = newTheme[1]
 						end,
 					}, "themedropdown")
-				themeEvent.Event:Connect(function()
+				ConnectOwned(instance.Instance, themeEvent.Event, function()
 					for key, theme in pairs(Themes) do
 						if theme == Starlight.CurrentTheme then
 							--themeDropdown:Set({ CurrentOption = tostring(key) })
@@ -11558,8 +11561,10 @@ function Starlight:CreateWindow(WindowSettings)
 		mainWindow.Content.Topbar.Controls.Minimize["MouseButton1Click"]:Connect(function()
 			if not debounce then
 				debounce = true
+				Starlight.Minimized = true
 				Hide(mainWindow, false, true, Starlight.WindowKeybind)
 				Hide(StarlightUI.Drag, false, false, Starlight.WindowKeybind)
+				windowVisibilityEvent:Fire(false)
 				task.delay(0.4, function()
 					debounce = false
 				end)
@@ -11570,8 +11575,10 @@ function Starlight:CreateWindow(WindowSettings)
 			if Starlight.Minimized == true then
 				if not debounce then
 					debounce = true
+					Starlight.Minimized = false
 					Unhide(mainWindow)
 					Unhide(StarlightUI.Drag)
+					windowVisibilityEvent:Fire(true)
 					Tween(
 						mainWindow.Content.Topbar.Controls.Minimize.Fill.Icon,
 						{ Position = UDim2.fromScale(0.5, 1.5) }
@@ -11584,8 +11591,10 @@ function Starlight:CreateWindow(WindowSettings)
 			elseif Starlight.Minimized == false then
 				if not debounce then
 					debounce = true
+					Starlight.Minimized = true
 					Hide(mainWindow, false, true, Starlight.WindowKeybind)
 					Hide(StarlightUI.Drag, false, false, Starlight.WindowKeybind)
+					windowVisibilityEvent:Fire(false)
 					task.delay(0.4, function()
 						debounce = false
 					end)
@@ -11601,8 +11610,10 @@ function Starlight:CreateWindow(WindowSettings)
 				if Starlight.Minimized == true then
 					if not debounce then
 						debounce = true
+						Starlight.Minimized = false
 						Unhide(mainWindow)
 						Unhide(StarlightUI.Drag)
+						windowVisibilityEvent:Fire(true)
 						Tween(
 							mainWindow.Content.Topbar.Controls.Minimize.Fill.Icon,
 							{ Position = UDim2.fromScale(0.5, 1.5) }
@@ -11615,8 +11626,10 @@ function Starlight:CreateWindow(WindowSettings)
 				elseif Starlight.Minimized == false then
 					if not debounce then
 						debounce = true
+						Starlight.Minimized = true
 						Hide(mainWindow, false, true, Starlight.WindowKeybind)
 						Hide(StarlightUI.Drag, false, false, Starlight.WindowKeybind)
+						windowVisibilityEvent:Fire(false)
 						task.delay(0.4, function()
 							debounce = false
 						end)
