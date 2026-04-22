@@ -5,6 +5,8 @@ local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 local Options = Library.Options
 
+local SKIP_KEY_SYSTEM = true
+
 local CORRECT_KEY = "EndOverdosing"
 
 local keyValidated = false
@@ -37,8 +39,16 @@ end
 
 local function loadMainScript()
     task.wait(0.5)
-    
     loadstring(game:HttpGet("https://raw.githubusercontent.com/EndOverdosing/Soluna-API/refs/heads/main/99-Nights-in-the-Forest/source.lua",true))()
+end
+
+if SKIP_KEY_SYSTEM then
+    print("Key system skipped, loading main script...")
+    keyValidated = true
+    task.spawn(function()
+        loadMainScript()
+    end)
+    return
 end
 
 if checkKeyFile() then
