@@ -63,7 +63,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/EndOverdosing/Soluna-
 
 ## Community
 
-Join the Discord for support and updates: [discord.gg/2hxKqA3b7b](https://discord.gg/2hxKqA3b7b)
+Join the Discord for support and updates: [discord.gg/e52GujVvbN](https://discord.gg/e52GujVvbN)
 
 ---
 
