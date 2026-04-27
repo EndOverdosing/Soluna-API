@@ -19,8 +19,9 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/EndOverdosing/Soluna-
 ## Supported Games
 
 **Rivals**
-- Rivals Classic
+- Rivals Rewrite
 - Rivals Modern
+- Rivals Classic
 - Rivals Skin Changer
 
 **Universal**
@@ -52,17 +53,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/EndOverdosing/Soluna-
 
 ---
 
-## Features
-
-- Toggleable scripts per game with persistent settings
-- Auto-load on game join
-- Script re-execution after in-game teleports
-- Multiple UI themes: Darker, Dark, Light, Ocean, Aqua, Rose, Violet, Cyan
-- Settings saved locally to `SolunaLoaderSettings.json`
-
----
-
-## Credits
+## Credits ( Discord )
 
 **Owner** — @endoverdosing  
 **Contributors** — @aidanqm, @rvd1  
